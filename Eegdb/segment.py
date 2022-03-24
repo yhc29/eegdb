@@ -3,13 +3,14 @@ import numpy as np
 from datetime import datetime, timedelta
 
 class Segment:
-  def __init__(self,subjectid,fileid,channel,start_time,end_time,signals):
+  def __init__(self,subjectid,fileid,channel_label,sample_rate,start_datetime,end_datetime,signals):
     self.__doc = {
       "subjectid": subjectid,
       "fileid": fileid,
-      "channel":channel,
-      "start_time":start_time,
-      "end_time":end_time,
+      "channel_label":channel_label,
+      "sample_rate":sample_rate,
+      "start_time":start_datetime,
+      "end_time":end_datetime,
       "signals":signals
     }
   
