@@ -24,6 +24,12 @@ class DataFile:
 
   def get_doc(self):
     return self.__doc
+  
+  def set_start_datetime(self,new_start_datetime):
+    duration = self.__doc["duration"] = duration
+    self.__doc["start_datetime"] = new_start_datetime
+    new_end_datetime = new_start_datetime+relativedelta(seconds = duration)
+    self.__doc["end_datetime"] = new_end_datetime
 
   def load_edf(self,filepath):
     _doc = {}
@@ -33,22 +39,22 @@ class DataFile:
 
     N_channel = f.signals_in_file
     _doc["n_channel"] = N_channel
-    print("N_channel",N_channel)
+    # print("N_channel",N_channel)
 
     channel_labels = f.getSignalLabels()
     _doc["channel_labels"] = channel_labels
-    print("channel_labels",channel_labels)
+    # print("channel_labels",channel_labels)
 
     start_datetime = f.getStartdatetime()
     _doc["start_datetime"] = start_datetime
-    print("start_datetime",start_datetime)
+    # print("start_datetime",start_datetime)
 
     duration = f.getFileDuration()
     _doc["duration"] = duration
-    print("duration",duration)
+    # print("duration",duration)
     end_datetime = start_datetime+relativedelta(seconds = duration)
     _doc["end_datetime"] = end_datetime
-    print("end_datetime",end_datetime)
+    # print("end_datetime",end_datetime)
 
     data = f.readSignal
 
@@ -66,7 +72,7 @@ class DataFile:
       _channel_list.append(_channel_doc)
     
     header = f.getHeader()
-    print("header",header)
+    # print("header",header)
     return _doc,_channel_list
 
   def segmentation(self,max_length):
@@ -89,7 +95,7 @@ class DataFile:
         offset_data_point_end = offset_data_point + int(max_length*sample_rate)
         if offset_data_point_end > n_data_point:
           offset_data_point_end = n_data_point
-        segment_signals = file_signals[offset_data_point:offset_data_point_end]
+        segment_signals = list(file_signals[offset_data_point:offset_data_point_end])
         
         segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],channel_index,channel_label,sample_rate,start_datetime,end_datetime,segment_signals)
         _segments.append(segment)

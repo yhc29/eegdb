@@ -1,6 +1,11 @@
 import sys
 sys.path.insert(0, '..')
 
+import os
+import random
+from datetime import datetime, timedelta
+from dateutil.relativedelta import relativedelta
+
 from Utils.timer import Timer
 
 from Eegdb.data_file import DataFile
@@ -21,14 +26,31 @@ def read_test():
     print(key,value)
 
 def import_test():
-  eegdb = Eegdb(config_file.mongo_url,config_file.eegdb_name,config_file.output_folder,config_file.data_folder)
-  eegdb.drop_collections(["files","segments"])
+  eegdb = Eegdb(config_file.mongo_url,"eegdb_test_100_subjects",config_file.output_folder,config_file.data_folder)
+  # eegdb.drop_collections(["files","segments"])
 
-  subjectid = "BJED03029788302444"
-  sessionid = "BJED0302978830244401"
-  filepath = "/Users/yhuang22/Documents/Data/CSR_EEG/eegdb_test/BJED0302978830244401/BJED0302978830244401-20160803-162846-21600.edf"
+  data_folder = "/Users/yhuang22/Documents/Data/CSR_EEG/eegdb_test/BJED0302978830244401/"
+  filepath_list = []
+  for filename in os.listdir(data_folder):
+    if os.path.isfile(os.path.join(data_folder, filename)):
+      if filename.split(".")[-1] == "edf":
+        filepath_list.append( data_folder + filename)
+  print(filepath_list)
 
-  eegdb.import_csr_eeg_file(subjectid,sessionid,filepath)
+  n_test_subject = 100
+  file_type = "edf"
+  random_offset_day_list = list(range(-365*5, 365*5))
+  for test_subject_index in range(n_test_subject):
+    random_offset_in_days = random.choice(random_offset_day_list)
+    subjectid = "test_subject_"+str(test_subject_index)
+    sessionid = subjectid+"_01"
+    for filepath in filepath_list:
+      filepath = "/Users/yhuang22/Documents/Data/CSR_EEG/eegdb_test/BJED0302978830244401/BJED0302978830244401-20160803-162846-21600.edf"
+      data_file = DataFile(subjectid,filepath,file_type,sessionid)
+      new_start_datetime = data_file.get_doc()["start_datetime"] + relativedelta(days = random_offset_in_days)
+      data_file.set_start_datetime(new_start_datetime)
+      eegdb.import_data_file(data_file,max_segment_length=1)
+      # eegdb.import_csr_eeg_file(subjectid,sessionid,filepath)
 
 
 if __name__ == '__main__':

@@ -25,7 +25,7 @@ class Eegdb:
   def drop_collections(self,collection_name_list):
     for collection_name in collection_name_list:
       self.__database[collection_name].drop()
-      
+
   def import_docs(self,doc_list,collection,batch_size=None):
     if not batch_size:
       batch_size = BATCH_SIZE
@@ -36,22 +36,36 @@ class Eegdb:
       _ = self.__database[collection].insert_many(doc_list[i*batch_size:(i+1)*batch_size])
     print(num_docs,"docs imported with",num_batch,"batches")
   
-  def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=1):
-    print("import",subjectid,sessionid,filepath)
-
-    print("load edf file")
-    file_type = "edf"
-    datafile = DataFile(subjectid,filepath,file_type,sessionid)
-
+  def import_data_file(self,data_file,max_segment_length=1):
     # import file
     print("import edf file info to database")
-    file_doc = datafile.get_doc()
+    file_doc = data_file.get_doc()
     file_collection = "files"
     self.import_docs([file_doc],file_collection)
 
     # import segments
     print("segmentation with max_segment_length =",max_segment_length)
-    segment_docs = [x.get_doc() for x in datafile.segmentation(max_segment_length)]
+    segment_docs = [x.get_doc() for x in data_file.segmentation(max_segment_length)]
+    segments_collection = "segments"
+    print("import segment data to database")
+    self.import_docs(segment_docs,segments_collection)
+
+  def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=1):
+    print("import",subjectid,sessionid,filepath)
+
+    print("load edf file")
+    file_type = "edf"
+    data_file = DataFile(subjectid,filepath,file_type,sessionid)
+
+    # import file
+    print("import edf file info to database")
+    file_doc = data_file.get_doc()
+    file_collection = "files"
+    self.import_docs([file_doc],file_collection)
+
+    # import segments
+    print("segmentation with max_segment_length =",max_segment_length)
+    segment_docs = [x.get_doc() for x in data_file.segmentation(max_segment_length)]
     segments_collection = "segments"
     print("import segment data to database")
     self.import_docs(segment_docs,segments_collection)
