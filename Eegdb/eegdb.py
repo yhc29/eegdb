@@ -71,9 +71,10 @@ class Eegdb:
     self.import_docs(segment_docs,segments_collection)
 
   def build_index(self):
+    print("build_index: files")
     self.__database["files"].create_index([("subjectid","hashed")])
     self.__database["files"].create_index([("start_datetime",1),("end_datetime",1)])
-
+    print("build_index: segments")
     self.__database["segments"].create_index([("subjectid","hashed"),("channel_labels",1),("start_datetime",1),("end_datetime",1)])
 
 
