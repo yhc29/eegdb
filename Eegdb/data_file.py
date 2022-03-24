@@ -26,7 +26,7 @@ class DataFile:
     return self.__doc
   
   def set_start_datetime(self,new_start_datetime):
-    duration = self.__doc["duration"] = duration
+    duration = self.__doc["duration"]
     self.__doc["start_datetime"] = new_start_datetime
     new_end_datetime = new_start_datetime+relativedelta(seconds = duration)
     self.__doc["end_datetime"] = new_end_datetime
