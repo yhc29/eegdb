@@ -41,28 +41,46 @@ def import_test():
   print(filepath_list)
 
   file_type = "edf"
-  random_offset_day_list = list(range(-365*5, 365*5))
-  mp_input = []
+  data_file_list = []
+  for filepath in filepath_list:
+    print(filepath)
+    data_file = DataFile("",filepath,file_type,"")
+    data_file_list.append(data_file)
+
+  random_offset_day_list = list(range(-365*1, 365*1))
+  # mp_input = []
   for test_subject_index in range(n_test_subject):
     random_offset_in_days = random.choice(random_offset_day_list)
     print("random_offset_in_days",random_offset_in_days)
     subjectid = "test_subject_"+str(test_subject_index)
     sessionid = subjectid+"_01"
-    mp_input.append([subjectid,sessionid,file_type,filepath_list,max_segment_length])
+    print("**************************",subjectid,"**************************")
 
-  n_processes = 10
-  pool = ThreadPool(processes=n_processes)
-  print("import_subject, n_processes =",n_processes)
-  pool.starmap(import_subject,mp_input)
+    for data_file in data_file_list:
+      data_file_doc = data_file.get_doc()
+      fileid = data_file_doc["fileid"]
+      print("import",subjectid,sessionid,fileid)
+      new_start_datetime = data_file_doc["start_datetime"] + relativedelta(days = random_offset_in_days)
+      data_file.set_start_datetime(new_start_datetime)
+      data_file.set_subjectid(subjectid)
+      data_file.set_sessionid(sessionid)
+      eegdb.import_data_file(data_file,max_segment_length=max_segment_length)
 
-def import_subject(subjectid,sessionid,file_type,filepath_list,max_segment_length):
+
+    # mp_input.append([subjectid,sessionid,data_file_list,max_segment_length])
+
+  # n_processes = 10
+  # pool = ThreadPool(processes=n_processes)
+  # print("import_subject, n_processes =",n_processes)
+  # pool.starmap(import_subject,mp_input)
+
+def import_subject(subjectid,sessionid,data_file_list,max_segment_length):
   eegdb = Eegdb(config_file.mongo_url,"eegdb_test_10_subjects_"+str(max_segment_length)+"s",config_file.output_folder,config_file.data_folder)
 
   random_offset_day_list = list(range(-365*5, 365*5))
   random_offset_in_days = random.choice(random_offset_day_list)
-  for filepath in filepath_list:
-    print("import",subjectid,sessionid,filepath)
-    data_file = DataFile(subjectid,filepath,file_type,sessionid)
+  for data_file in data_file_list:
+    print("import",subjectid,sessionid)
     new_start_datetime = data_file.get_doc()["start_datetime"] + relativedelta(days = random_offset_in_days)
     data_file.set_start_datetime(new_start_datetime)
     eegdb.import_data_file(data_file,max_segment_length=max_segment_length)
@@ -88,7 +106,7 @@ if __name__ == '__main__':
   my_timer = Timer()
 
   # read_test()
-  # import_test()
-  export_test()
+  import_test()
+  # export_test()
 
   print(my_timer.stop())

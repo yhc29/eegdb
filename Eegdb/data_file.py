@@ -25,6 +25,12 @@ class DataFile:
   def get_doc(self):
     return self.__doc
   
+  def set_subjectid(self,new_subjectid):
+    self.__doc["subjectid"] = new_subjectid
+  
+  def set_sessionid(self,new_sessionid):
+    self.__doc["sessionid"] = new_sessionid
+
   def set_start_datetime(self,new_start_datetime):
     duration = self.__doc["duration"]
     self.__doc["start_datetime"] = new_start_datetime

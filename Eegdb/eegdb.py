@@ -91,20 +91,33 @@ class Eegdb:
 
 
   def generate_export_data(self,segment_docs):
-    export_data = {}
+    export_data_by_file = {}
     for segment_doc in segment_docs:
-      seg_key_data = [ segment_doc["subjectid"], str(segment_doc["channel_index"]), segment_doc["channel_label"], str(segment_doc["sample_rate"])]
+      seg_key_data = [ segment_doc["subjectid"],segment_doc["fileid"], str(segment_doc["channel_index"]), segment_doc["channel_label"], str(segment_doc["sample_rate"])]
       seg_key = "|".join(seg_key_data)
       segment_signals_doc = {"start_datetime":segment_doc["start_datetime"],"end_datetime":segment_doc["end_datetime"],"signals":segment_doc["signals"]}
       try:
-        export_data[seg_key].append(segment_signals_doc)
+        export_data_by_file[seg_key].append(segment_signals_doc)
       except:
-        export_data[seg_key] = [segment_signals_doc]
-    for seg_key, segment_signals_docs in export_data.items():
-      export_data[seg_key] = self.merge_signals(segment_signals_docs)
-    return export_data
+        export_data_by_file[seg_key] = [segment_signals_doc]
+    export_data_by_channel = {}
+    for seg_key, segment_signals_docs in export_data_by_file.items():
+      seg_key_in_list = seg_key.split("|")
+      sample_rate = float(seg_key_in_list[-1])
+      seg_key_in_list.pop(1)
+      new_seg_key = "|".join(seg_key_in_list)
+      merged_signals = self.merge_segment_signals(segment_signals_docs,sample_rate)
+      try:
+        export_data_by_channel[new_seg_key] += merged_signals
+      except:
+        export_data_by_channel[new_seg_key] = merged_signals
+    for seg_key, segment_signals_docs in export_data_by_channel.items():
+      seg_key_in_list = seg_key.split("|")
+      sample_rate = float(seg_key_in_list[-1])
+      export_data_by_channel[seg_key] = self.merge_segment_signals(segment_signals_docs,sample_rate)
+    return export_data_by_channel
 
-  def merge_signals(segment_signals_docs):
+  def merge_segment_signals(self,segment_signals_docs,sample_rate):
     section_list = []
     segment_signals_docs = sorted(segment_signals_docs,key=lambda x:x["start_datetime"])
     section = None
@@ -119,6 +132,13 @@ class Eegdb:
       if segment_start_datetime == section["end_datetime"]:
         section["end_datetime"] = segment_end_datetime
         section["signals"] += segment_signals
+      elif segment_start_datetime < section["end_datetime"]:
+        if segment_end_datetime > section["end_datetime"]:
+          offset_in_seconds = (section["end_datetime"]-segment_start_datetime).seconds
+          offset_in_data_points = int(offset_in_seconds*sample_rate)
+          new_segment_signals = segment_signals[offset_in_data_points:]
+          section["end_datetime"] = segment_end_datetime
+          section["signals"] += new_segment_signals
       else:
         section_list.append(section.copy())
         section = {"start_datetime":segment_start_datetime,"end_datetime":segment_end_datetime,"signals":segment_signals}
@@ -126,7 +146,7 @@ class Eegdb:
       section_list.append(section.copy())
     return section_list
 
-  
 
+  
 
 
