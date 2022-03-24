@@ -83,7 +83,11 @@ class Eegdb:
     if not query_end_datetime:
       query_end_datetime = datetime(2099,12,31)
     
-    query_stmt = {"subjectid":subjectid, "channel_label":{"$in":channel_list}}
+    query_stmt = {"subjectid":subjectid, "channel_label":{"$in":channel_list}, "start_datetime":{"$lte":query_end_datetime}, "end_datetime":{"$gte":query_start_datetime}}
+    segment_docs = self.__database["segments"].find(query_stmt)
+    export_data = self.generate_export_data(segment_docs)
+    return export_data
+
 
   def generate_export_data(self,segment_docs):
     export_data = {}
