@@ -10,8 +10,8 @@ class Segment:
       "channel_index":channel_index,
       "channel_label":channel_label,
       "sample_rate":sample_rate,
-      "start_time":start_datetime,
-      "end_time":end_datetime,
+      "start_datetime":start_datetime,
+      "end_datetime":end_datetime,
       "signals":signals
     }
   

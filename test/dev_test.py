@@ -26,7 +26,7 @@ def read_test():
     print(key,value)
 
 def import_test():
-  n_test_subject = 10
+  n_test_subject = 2
   max_segment_length = 1
   eegdb = Eegdb(config_file.mongo_url,"eegdb_test_"+str(n_test_subject)+"_subjects_"+str(max_segment_length)+"s",config_file.output_folder,config_file.data_folder)
   eegdb.drop_collections(["files","segments"])

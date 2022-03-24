@@ -69,6 +69,58 @@ class Eegdb:
     segments_collection = "segments"
     print("import segment data to database")
     self.import_docs(segment_docs,segments_collection)
+
+  def build_index(self):
+    self.__database["files"].create_index([("subjectid","hashed")])
+    self.__database["files"].create_index([("start_datetime",1),("end_datetime",1)])
+
+    self.__database["segments"].create_index([("subjectid","hashed"),("channel_labels",1),("start_datetime",1),("end_datetime",1)])
+
+
+  def data_export(self,subjectid,channel_list,query_start_datetime=None,query_end_datetime=None):
+    if not query_start_datetime:
+      query_start_datetime = datetime(2000,1,1)
+    if not query_end_datetime:
+      query_end_datetime = datetime(2099,12,31)
+    
+    query_stmt = {"subjectid":subjectid, "channel_label":{"$in":channel_list}}
+
+  def generate_export_data(self,segment_docs):
+    export_data = {}
+    for segment_doc in segment_docs:
+      seg_key_data = [ segment_doc["subjectid"], str(segment_doc["channel_index"]), segment_doc["channel_label"], str(segment_doc["sample_rate"])]
+      seg_key = "|".join(seg_key_data)
+      segment_signals_doc = {"start_datetime":segment_doc["start_datetime"],"end_datetime":segment_doc["end_datetime"],"signals":segment_doc["signals"]}
+      try:
+        export_data[seg_key].append(segment_signals_doc)
+      except:
+        export_data[seg_key] = [segment_signals_doc]
+    for seg_key, segment_signals_docs in export_data.items():
+      export_data[seg_key] = self.merge_signals(segment_signals_docs)
+    return export_data
+
+  def merge_signals(segment_signals_docs):
+    section_list = []
+    segment_signals_docs = sorted(segment_signals_docs,key=lambda x:x["start_datetime"])
+    section = None
+    for segment_signals_doc in segment_signals_docs:
+      segment_start_datetime = segment_signals_doc["start_datetime"]
+      segment_end_datetime = segment_signals_doc["end_datetime"]
+      segment_signals = segment_signals_doc["signals"]
+      if not section:
+        section = {"start_datetime":segment_start_datetime,"end_datetime":segment_end_datetime,"signals":segment_signals}
+        continue
+
+      if segment_start_datetime == section["end_datetime"]:
+        section["end_datetime"] = segment_end_datetime
+        section["signals"] += segment_signals
+      else:
+        section_list.append(section.copy())
+        section = {"start_datetime":segment_start_datetime,"end_datetime":segment_end_datetime,"signals":segment_signals}
+    if section:
+      section_list.append(section.copy())
+    return section_list
+
   
 
 
