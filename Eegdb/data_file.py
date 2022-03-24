@@ -1,15 +1,16 @@
 import os
-from eegdb.segment import Segment
 import pyedflib
 import numpy as np
 import math
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
+from Eegdb.segment import Segment
+
 class DataFile:
   def __init__(self,subjectid,filepath,file_type,sessionid=None):
-    self.__doc = {"subjectid":subjectid}
-    self.__doc = {"fileid":filepath.split("/")[-1]}
+    self.__doc = { "subjectid": subjectid }
+    self.__doc["fileid"] = filepath.split("/")[-1]
     if sessionid:
       self.__doc["sessionid"] = sessionid
 
@@ -21,6 +22,8 @@ class DataFile:
   
     self.__doc.update(_edf_doc)
 
+  def get_doc(self):
+    return self.__doc
 
   def load_edf(self,filepath):
     _doc = {}
@@ -55,6 +58,7 @@ class DataFile:
       signals = data(i)
       # print("signal_label",signal_label,"sample_rate",sample_rate,"signals",signals[:5])
       _channel_doc = {
+        "channel_index":i,
         "channel_label":channel_label,
         "sample_rate":sample_rate,
         "signals":signals
@@ -68,6 +72,7 @@ class DataFile:
   def segmentation(self,max_length):
     _segments = []
     for channel_doc in self.__channel_list:
+      channel_index = channel_doc["channel_index"]
       channel_label = channel_doc["channel_label"]
       sample_rate = channel_doc["sample_rate"]
       file_signals = channel_doc["signals"]
@@ -80,12 +85,12 @@ class DataFile:
         if end_datetime > self.__doc["end_datetime"]:
           end_datetime = self.__doc["end_datetime"]
 
-        offset_data_point = offset*sample_rate
-        offset_data_point_end = offset_data_point + max_length*sample_rate
+        offset_data_point = int(offset*sample_rate)
+        offset_data_point_end = offset_data_point + int(max_length*sample_rate)
         if offset_data_point_end > n_data_point:
           offset_data_point_end = n_data_point
         segment_signals = file_signals[offset_data_point:offset_data_point_end]
         
-        segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],channel_label,sample_rate,start_datetime,end_datetime,segment_signals)
+        segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],channel_index,channel_label,sample_rate,start_datetime,end_datetime,segment_signals)
         _segments.append(segment)
     return _segments
