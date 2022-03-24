@@ -72,7 +72,7 @@ def export_test():
   n_test_subject = 2
   max_segment_length = 1
   eegdb = Eegdb(config_file.mongo_url,"eegdb_test_"+str(n_test_subject)+"_subjects_"+str(max_segment_length)+"s",config_file.output_folder,config_file.data_folder)
-  eegdb.build_index()
+  # eegdb.build_index()
   
   subjectid = "test_subject_1"
   # ['Fp1', 'Fp2', 'F3', 'F4', 'C3', 'C4', 'P3', 'P4', 'O1', 'O2', 'F7', 'F8', 'T7', 'T8', 'P7', 'P8', 'Fz', 'Cz', 'Pz', 'E', 'FT9', 'FT10', 'A1', 'A2', 'EKG', 'EKG2', 'X3', 'X4', '-', '-', '-', 'DC01', 'DC02', 'DC03', 'DC04', '', '', 'BP1', 'BP2', 'BP3', 'BP4', 'N/A']

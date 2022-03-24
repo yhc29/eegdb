@@ -4,7 +4,7 @@ sys.path.insert(0, '..')
 import numpy as np
 import os
 import math
-import datetime
+from datetime import datetime
 import pymongo
 
 from Eegdb.data_file import DataFile
@@ -75,7 +75,7 @@ class Eegdb:
     self.__database["files"].create_index([("subjectid","hashed")])
     self.__database["files"].create_index([("start_datetime",1),("end_datetime",1)])
     print("build_index: segments")
-    self.__database["segments"].create_index([("subjectid","hashed"),("channel_labels",1),("start_datetime",1),("end_datetime",1)])
+    self.__database["segments"].create_index([("subjectid",1),("channel_labels",1),("start_datetime",1),("end_datetime",1)])
 
 
   def data_export(self,subjectid,channel_list,query_start_datetime=None,query_end_datetime=None):
