@@ -23,7 +23,7 @@ class DataFile:
     self.__doc.update(_edf_doc)
 
   def get_doc(self):
-    return self.__doc
+    return self.__doc.copy()
   
   def set_subjectid(self,new_subjectid):
     self.__doc["subjectid"] = new_subjectid

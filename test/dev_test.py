@@ -27,10 +27,10 @@ def read_test():
     print(key,value)
 
 def import_test():
-  n_test_subject = 10
+  n_test_subject = 100
   max_segment_length = 1
   eegdb = Eegdb(config_file.mongo_url,"eegdb_test_"+str(n_test_subject)+"_subjects_"+str(max_segment_length)+"s",config_file.output_folder,config_file.data_folder)
-  eegdb.drop_collections(["files","segments"])
+  # eegdb.drop_collections(["files","segments"])
 
   data_folder = "/Users/yhuang22/Documents/Data/CSR_EEG/eegdb_test/BJED0302978830244401/"
   filepath_list = []
@@ -42,12 +42,13 @@ def import_test():
 
   file_type = "edf"
   data_file_list = []
+  # filepath_list = ["/Users/yhuang22/Documents/Data/CSR_EEG/eegdb_test/BJED0302978830244401/BJED0302978830244401-20160805-102831-2922.edf"]
   for filepath in filepath_list:
     print(filepath)
     data_file = DataFile("",filepath,file_type,"")
     data_file_list.append(data_file)
 
-  random_offset_day_list = list(range(-365*1, 365*1))
+  random_offset_day_list = list(range(-1*int(365*10/n_test_subject), int(365*10/n_test_subject)))
   # mp_input = []
   for test_subject_index in range(n_test_subject):
     random_offset_in_days = random.choice(random_offset_day_list)
@@ -61,6 +62,7 @@ def import_test():
       fileid = data_file_doc["fileid"]
       print("import",subjectid,sessionid,fileid)
       new_start_datetime = data_file_doc["start_datetime"] + relativedelta(days = random_offset_in_days)
+      # new_start_datetime = datetime(2016,1,1) + relativedelta(days = random_offset_in_days)
       data_file.set_start_datetime(new_start_datetime)
       data_file.set_subjectid(subjectid)
       data_file.set_sessionid(sessionid)
