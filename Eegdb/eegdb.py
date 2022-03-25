@@ -78,15 +78,22 @@ class Eegdb:
     self.__database["segments"].create_index([("subjectid",1),("channel_labels",1),("start_datetime",1),("end_datetime",1)])
 
 
-  def data_export(self,subjectid,channel_list,query_start_datetime=None,query_end_datetime=None):
+  def data_export(self,subjectid_list,channel_list,query_start_datetime=None,query_end_datetime=None):
     if not query_start_datetime:
       query_start_datetime = datetime(2000,1,1)
     if not query_end_datetime:
       query_end_datetime = datetime(2099,12,31)
     
-    query_stmt = {"subjectid":subjectid, "channel_label":{"$in":channel_list}, "start_datetime":{"$lte":query_end_datetime}, "end_datetime":{"$gte":query_start_datetime}}
+    query_stmt = {"subjectid":{"$in":subjectid_list}, "channel_label":{"$in":channel_list}, "start_datetime":{"$lt":query_end_datetime}, "end_datetime":{"$gt":query_start_datetime}}
     segment_docs = self.__database["segments"].find(query_stmt)
     export_data = self.generate_export_data(segment_docs)
+    # clip to match query time window
+    for key,signals_doc_list in export_data.items():
+      key_in_list = key.split("|")
+      sample_rate = float(key_in_list[-1])
+      signals_doc_list[0] = self.clip_signals(signals_doc_list[0],sample_rate,query_start_datetime,query_end_datetime)
+      if len(signals_doc_list)>1:
+        signals_doc_list[-1] = self.clip_signals(signals_doc_list[-1],sample_rate,query_start_datetime,query_end_datetime)
     return export_data
 
 
@@ -145,8 +152,34 @@ class Eegdb:
     if section:
       section_list.append(section.copy())
     return section_list
-
-
   
+  def clip_signals(self,signals_doc,sample_rate,clip_start_datetime,clip_end_datetime):
+    if clip_start_datetime and clip_end_datetime and clip_start_datetime>clip_end_datetime:
+      print("Error: clip_start_datetime should be ealier than clip_end_datetime")
+      return -1
+    signals_start_datetime = signals_doc["start_datetime"]
+    signals_end_datetime = signals_doc["end_datetime"]
+    signals = signals_doc["signals"]
+
+    if clip_start_datetime>signals_start_datetime and clip_start_datetime<=signals_end_datetime:
+      offset_in_seconds = (clip_start_datetime-signals_start_datetime).seconds
+      start_offset_in_data_points = int(offset_in_seconds*sample_rate)
+      new_signals_start_datetime = clip_start_datetime
+    else:
+      start_offset_in_data_points = 0
+      new_signals_start_datetime = signals_start_datetime
+
+    if clip_end_datetime>signals_start_datetime and clip_end_datetime<signals_end_datetime:
+      offset_in_seconds = (clip_end_datetime-signals_start_datetime).seconds
+      end_offset_in_data_points = int(offset_in_seconds*sample_rate)
+      new_signals_end_datetime = clip_end_datetime
+    else:
+      end_offset_in_data_points = len(signals)
+      new_signals_end_datetime = signals_end_datetime
+
+    
+    new_segment_signals = signals[start_offset_in_data_points:end_offset_in_data_points]
+    new_signals_doc = {"start_datetime":new_signals_start_datetime,"end_datetime":new_signals_end_datetime,"signals":new_segment_signals}
+    return new_signals_doc
 
 

@@ -26,9 +26,7 @@ def read_test():
   for key,value in segment_doc.items():
     print(key,value)
 
-def import_test():
-  n_test_subject = 100
-  max_segment_length = 1
+def import_test(n_test_subject,max_segment_length):
   eegdb = Eegdb(config_file.mongo_url,"eegdb_test_"+str(n_test_subject)+"_subjects_"+str(max_segment_length)+"s",config_file.output_folder,config_file.data_folder)
   # eegdb.drop_collections(["files","segments"])
 
@@ -89,26 +87,32 @@ def import_subject(subjectid,sessionid,data_file_list,max_segment_length):
 
 
 def export_test():
-  n_test_subject = 2
+  n_test_subject = 10
   max_segment_length = 1
   eegdb = Eegdb(config_file.mongo_url,"eegdb_test_"+str(n_test_subject)+"_subjects_"+str(max_segment_length)+"s",config_file.output_folder,config_file.data_folder)
   # eegdb.build_index()
   
-  subjectid = "test_subject_1"
+  subjectid = "test_subject_8"
   # ['Fp1', 'Fp2', 'F3', 'F4', 'C3', 'C4', 'P3', 'P4', 'O1', 'O2', 'F7', 'F8', 'T7', 'T8', 'P7', 'P8', 'Fz', 'Cz', 'Pz', 'E', 'FT9', 'FT10', 'A1', 'A2', 'EKG', 'EKG2', 'X3', 'X4', '-', '-', '-', 'DC01', 'DC02', 'DC03', 'DC04', '', '', 'BP1', 'BP2', 'BP3', 'BP4', 'N/A']
   channel_list = ['EKG', 'EKG2']
-  dataset = eegdb.data_export(subjectid,channel_list,query_start_datetime=None,query_end_datetime=None)
+  # query_start_datetime,query_end_datetime=None,None
+  query_start_datetime,query_end_datetime= datetime(2015,4,9,21,0,0),datetime(2015,4,9,22,0,0)
+  dataset = eegdb.data_export(subjectid,channel_list,query_start_datetime=query_start_datetime,query_end_datetime=query_end_datetime)
   for channel_key, channel_signals_doc_list in dataset.items():
     print(channel_key)
     for section_signals_doc in channel_signals_doc_list:
-      print(section_signals_doc["start_datetime"],section_signals_doc["end_datetime"])
+      print(section_signals_doc["start_datetime"],section_signals_doc["end_datetime"],len(section_signals_doc["signals"]))
 
 
 if __name__ == '__main__':
   my_timer = Timer()
 
   # read_test()
-  import_test()
+  n_test_subject = 10
+  max_segment_length_list = [1,10,20,30,60,600]
+  max_segment_length_list = [5,180,300,900]
+  for max_segment_length in max_segment_length_list:
+    import_test(n_test_subject,max_segment_length)
   # export_test()
 
   print(my_timer.stop())
