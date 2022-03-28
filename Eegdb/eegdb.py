@@ -71,10 +71,12 @@ class Eegdb:
     self.import_docs(segment_docs,segments_collection)
 
     # import annotation
-    annotation_docs = data_file.load_annotations(annotation_filepath)
-    annotation_collection = "annotations"
-    print("import annotation data to database")
-    self.import_docs(annotation_docs,annotation_collection)
+    if annotation_filepath:
+      annotation_docs = data_file.load_annotations(annotation_filepath)
+      if annotation_filepath:
+        annotation_collection = "annotations"
+        print("import annotation data to database")
+        self.import_docs(annotation_docs,annotation_collection)
 
   def build_index(self):
     print("build_index: files")

@@ -113,9 +113,10 @@ class DataFile:
     fileid = self.__doc["fileid"]
     file_start_datetime = self.__doc["start_datetime"]
 
-    with open(filepath) as f:
+    with open(filepath,encoding='ascii') as f:
       lines = f.readlines()
       for line in lines:
+        line = line.strip().strip('\x00')
         relative_time_str = line.split("\t")[0]
         annotation = line.split("\t")[1]
 
