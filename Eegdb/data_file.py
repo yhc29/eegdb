@@ -106,3 +106,26 @@ class DataFile:
         segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],channel_index,channel_label,sample_rate,start_datetime,end_datetime,segment_signals)
         _segments.append(segment)
     return _segments
+
+  def load_annotations(self,filepath):
+    annotation_docs = []
+    subjectid = self.__doc["subjectid"]
+    fileid = self.__doc["fileid"]
+    file_start_datetime = self.__doc["start_datetime"]
+
+    with open(filepath) as f:
+      lines = f.readlines()
+      for line in lines:
+        relative_time_str = line.split("\t")[0]
+        annotation = line.split("\t")[1]
+
+        relative_hour = int(relative_time_str.split(":")[0])
+        relative_min = int(relative_time_str.split(":")[1])
+        relative_sec = float(relative_time_str.split(":")[2])
+
+        relative_time_in_seconds = relative_hour*3600 + relative_min*60 + relative_sec
+        absolute_time = file_start_datetime + relativedelta(seconds=relative_time_in_seconds)
+
+        annotation_doc = {"subjectid":subjectid, "fileid":fileid, "file_time":relative_time_in_seconds, "time":absolute_time, "annotation":annotation}
+        annotation_docs.append(annotation_doc)
+    return annotation_docs

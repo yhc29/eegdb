@@ -50,7 +50,7 @@ class Eegdb:
     print("import segment data to database")
     self.import_docs(segment_docs,segments_collection)
 
-  def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=1):
+  def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=1,annotation_filepath=None):
     print("import",subjectid,sessionid,filepath)
 
     print("load edf file")
@@ -70,6 +70,12 @@ class Eegdb:
     print("import segment data to database")
     self.import_docs(segment_docs,segments_collection)
 
+    # import annotation
+    annotation_docs = data_file.load_annotations(annotation_filepath)
+    annotation_collection = "annotations"
+    print("import annotation data to database")
+    self.import_docs(annotation_docs,annotation_collection)
+
   def build_index(self):
     print("build_index: files")
     self.__database["files"].create_index([("subjectid","hashed")])
@@ -80,7 +86,7 @@ class Eegdb:
 
   def data_export(self,subjectid_list,channel_list,query_start_datetime=None,query_end_datetime=None):
     if not query_start_datetime:
-      query_start_datetime = datetime(2000,1,1)
+      query_start_datetime = datetime(1900,1,1)
     if not query_end_datetime:
       query_end_datetime = datetime(2099,12,31)
     

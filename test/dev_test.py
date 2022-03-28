@@ -103,6 +103,17 @@ def export_test():
     for section_signals_doc in channel_signals_doc_list:
       print(section_signals_doc["start_datetime"],section_signals_doc["end_datetime"],len(section_signals_doc["signals"]))
 
+def load_annotation_test():
+  subjectid = "CCOU71670000211555"
+  sessionid = "CCOU7167000021155502"
+  edf_filepath = "/Users/yhuang22/Documents/Data/CSR_EEG/UH/CCOU7167000021155502/CCOU7167000021155502_7_1.edf"
+  annotation_filepath = "/Users/yhuang22/Documents/Data/CSR_EEG/UH/CCOU7167000021155502/CCOU7167000021155502_7_1.txt"
+  file_type = "edf"
+  datafile = DataFile(subjectid,edf_filepath,file_type,sessionid)
+
+  annotation_docs = datafile.load_annotations(annotation_filepath)
+  for doc in annotation_docs:
+    print(doc)
 
 if __name__ == '__main__':
   my_timer = Timer()
