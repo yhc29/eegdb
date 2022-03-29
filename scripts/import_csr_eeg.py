@@ -43,10 +43,11 @@ def test_data_import(eegdb,data_folder):
   imported_file_count = 0
   for fileid,file_info in data_file_dict.items():
     imported_file_count += 1
-    if not file_info[2]:
-      print("No edf found for",file_info)
-      continue
     subjectid,sessionid,filepath,annotation_filepath = file_info
+    if not filepath:
+      print("No edf found for",file_info)
+    if not annotation_filepath:
+      print("No edf found for",file_info)
     eegdb.import_csr_eeg_file(subjectid,sessionid,filepath,max_segment_length=180,annotation_filepath=annotation_filepath)
     print(imported_file_count,"/",total_file_count, "imported.")
 

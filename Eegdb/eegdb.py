@@ -51,41 +51,55 @@ class Eegdb:
     self.import_docs(segment_docs,segments_collection)
 
   def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=1,annotation_filepath=None,check_existing=True):
-    if check_existing:
-      fileid = filepath.split("/")[-1]
-      existing_file_doc = self.__database["files"].find_one({"subjectid":subjectid,"fileid":fileid})
-      if existing_file_doc:
-        print(filepath,"exists, skip import.")
-        return -2
+    import_edf_flag = True
+    import_annotation_flag = True
+
     print("import",subjectid,sessionid,filepath,annotation_filepath)
 
-    # print("load edf file")
-    file_type = "edf"
-    try:
-      data_file = DataFile(subjectid,filepath,file_type,sessionid)
-    except:
-      print("Read EDF error on", filepath)
-      return -1
+    if filepath:
+      if check_existing:
+        fileid = filepath.split("/")[-1]
+        existing_file_doc = self.__database["files"].find_one({"subjectid":subjectid,"fileid":fileid})
+        if existing_file_doc:
+          print(filepath,"exists, skip import edf.")
+          import_edf_flag = False
 
-    # import file
-    # print("import edf file info to database")
-    file_doc = data_file.get_doc()
-    file_collection = "files"
-    self.import_docs([file_doc],file_collection)
+      if import_edf_flag:
+        # print("load edf file")
+        file_type = "edf"
+        try:
+          data_file = DataFile(subjectid,filepath,file_type,sessionid)
+        except:
+          print("Read EDF error on", filepath)
+          return -1
 
-    # import segments
-    # print("import segment data to database, segmentation with max_segment_length =",max_segment_length)
-    segment_docs = [x.get_doc() for x in data_file.segmentation(max_segment_length)]
-    segments_collection = "segments"
-    self.import_docs(segment_docs,segments_collection)
+        # import file
+        # print("import edf file info to database")
+        file_doc = data_file.get_doc()
+        file_collection = "files"
+        self.import_docs([file_doc],file_collection)
+
+        # import segments
+        # print("import segment data to database, segmentation with max_segment_length =",max_segment_length)
+        segment_docs = [x.get_doc() for x in data_file.segmentation(max_segment_length)]
+        segments_collection = "segments"
+        self.import_docs(segment_docs,segments_collection)
 
     # import annotation
     if annotation_filepath:
-      annotation_docs = data_file.load_annotations(annotation_filepath)
-      if annotation_filepath:
-        annotation_collection = "annotations"
-        # print("import annotation data to database")
-        self.import_docs(annotation_docs,annotation_collection)
+      if check_existing:
+        fileid = filepath.split("/")[-1].split(".")[0]+".edf"
+        existing_file_doc = self.__database["annotations"].find_one({"subjectid":subjectid,"fileid":fileid})
+        if existing_file_doc:
+          print(filepath,"exists, skip import annotation.")
+          import_annotation_flag = False
+
+      if import_annotation_flag:
+        annotation_docs = data_file.load_annotations(annotation_filepath)
+        if annotation_filepath:
+          annotation_collection = "annotations"
+          # print("import annotation data to database")
+          self.import_docs(annotation_docs,annotation_collection)
 
   def build_index(self):
     print("build_index: files")
