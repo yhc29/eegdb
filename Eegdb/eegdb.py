@@ -34,7 +34,7 @@ class Eegdb:
     num_batch = math.ceil(num_docs/batch_size)
     for i in range(num_batch):
       _ = self.__database[collection].insert_many(doc_list[i*batch_size:(i+1)*batch_size])
-    print(num_docs,"docs imported with",num_batch,"batches")
+    print(num_docs,"docs imported to",collection,"with",num_batch,"batches")
   
   def import_data_file(self,data_file,max_segment_length=1):
     # import file
@@ -51,23 +51,22 @@ class Eegdb:
     self.import_docs(segment_docs,segments_collection)
 
   def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=1,annotation_filepath=None):
-    print("import",subjectid,sessionid,filepath)
+    print("import",subjectid,sessionid,filepath,annotation_filepath)
 
-    print("load edf file")
+    # print("load edf file")
     file_type = "edf"
     data_file = DataFile(subjectid,filepath,file_type,sessionid)
 
     # import file
-    print("import edf file info to database")
+    # print("import edf file info to database")
     file_doc = data_file.get_doc()
     file_collection = "files"
     self.import_docs([file_doc],file_collection)
 
     # import segments
-    print("segmentation with max_segment_length =",max_segment_length)
+    # print("import segment data to database, segmentation with max_segment_length =",max_segment_length)
     segment_docs = [x.get_doc() for x in data_file.segmentation(max_segment_length)]
     segments_collection = "segments"
-    print("import segment data to database")
     self.import_docs(segment_docs,segments_collection)
 
     # import annotation
@@ -75,7 +74,7 @@ class Eegdb:
       annotation_docs = data_file.load_annotations(annotation_filepath)
       if annotation_filepath:
         annotation_collection = "annotations"
-        print("import annotation data to database")
+        # print("import annotation data to database")
         self.import_docs(annotation_docs,annotation_collection)
 
   def build_index(self):
