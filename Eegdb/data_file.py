@@ -25,7 +25,7 @@ class DataFile:
   def get_doc(self):
     return self.__doc.copy()
 
-  def get_channel_doc(self,channel_index):
+  def get_channel(self,channel_index):
     return self.__channel_list[channel_index].copy()
   
   def set_subjectid(self,new_subjectid):
@@ -69,8 +69,9 @@ class DataFile:
 
     for i in range(N_channel):
       channel_label = channel_labels[i]
-      sample_rate = f.getSampleFrequency(i)
+      # sample_rate = f.getSampleFrequency(i) Bug: not correct for csr edf
       signals = data(i)
+      sample_rate = len(signals)/duration
       # print("signal_label",signal_label,"sample_rate",sample_rate,"signals",signals[:5])
       _channel_doc = {
         "channel_index":i,
