@@ -50,12 +50,22 @@ class Eegdb:
     print("import segment data to database")
     self.import_docs(segment_docs,segments_collection)
 
-  def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=1,annotation_filepath=None):
+  def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=1,annotation_filepath=None,check_existing=True):
+    if check_existing:
+      fileid = filepath.split("/")[-1]
+      existing_file_doc = self.__database["files"].find_one({"subjectid":subjectid,"fileid":fileid})
+      if existing_file_doc:
+        print(filepath,"exists, skip import.")
+        return -2
     print("import",subjectid,sessionid,filepath,annotation_filepath)
 
     # print("load edf file")
     file_type = "edf"
-    data_file = DataFile(subjectid,filepath,file_type,sessionid)
+    try:
+      data_file = DataFile(subjectid,filepath,file_type,sessionid)
+    except:
+      print("Read EDF error on", filepath)
+      return -1
 
     # import file
     # print("import edf file info to database")
