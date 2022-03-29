@@ -24,6 +24,9 @@ class DataFile:
 
   def get_doc(self):
     return self.__doc.copy()
+
+  def get_channel_doc(self,channel_index):
+    return self.__channel_list[channel_index].copy()
   
   def set_subjectid(self,new_subjectid):
     self.__doc["subjectid"] = new_subjectid
