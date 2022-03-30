@@ -88,7 +88,7 @@ class Eegdb:
     # import annotation
     if annotation_filepath:
       if check_existing:
-        fileid = filepath.split("/")[-1].split(".")[0]+".edf"
+        fileid = annotation_filepath.split("/")[-1].split(".")[0]+".edf"
         existing_file_doc = self.__database["annotations"].find_one({"subjectid":subjectid,"fileid":fileid})
         if existing_file_doc:
           print(filepath,"exists, skip import annotation.")
