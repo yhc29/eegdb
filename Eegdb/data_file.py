@@ -33,7 +33,7 @@ class DataFile:
       if load_data:
         _file_info_doc,self.__channel_list = self.load_edf(filepath)
         self.__doc.update(_file_info_doc)
-    elif vendor == "samsung_wearable" and file_type in ["bppg"]:
+    elif vendor == "samsung_wearable" and file_type in ["bppg","hribi","gyro"]:
       if load_data:
         _file_info_doc,self.__channel_list = self.load_samsung_wearable_data(filepath,file_type)
         self.__doc.update(_file_info_doc)
@@ -120,16 +120,56 @@ class DataFile:
   def load_samsung_wearable_data(self, filepath,file_type):
     _doc = {}
     _channel_list = []
+    default_sample_rate_dict = {"bppg":25, "gyro":25, "hribi":1}
+    default_channels_dict = {
+      "bppg":[ 'Green', 'AccX', 'AccY', 'AccZ' ],
+      "gyro":['X', 'Y', 'Z'],
+      "hribi":[ 'Bpm', 'Rri' ]}
 
     # df = pd.read_json(fn, compression='gzip')
     with gzip.open(filepath, 'r') as f:
       json_bytes = f.read()
-
     json_str = json_bytes.decode('utf-8')
     data = json.loads(json_str)
-    print(data[0])
+
+    channel_labels = default_channels_dict[file_type]
+    _doc["channel_labels"] = channel_labels
+
+    N_channel = len(channel_labels)
+    _doc["n_channel"] = N_channel
+
+    start_datetime = f.getStartdatetime()
+    _doc["start_datetime"] = start_datetime
+    # print("start_datetime",start_datetime)
+
+    duration = f.getFileDuration()
+    _doc["duration"] = duration
+    # print("duration",duration)
+    end_datetime = start_datetime+relativedelta(seconds = duration)
+    _doc["end_datetime"] = end_datetime
+
+    # n_data_point = len(data)
+    # print("n_data_point:",n_data_point)
+
+    start_datetime = datetime.fromtimestamp(data[0]["Timestamp"]/1000.0)
+    _doc["start_datetime"] = start_datetime
+    end_datetime = datetime.fromtimestamp(data[-1]["Timestamp"]/1000.0)
+    _doc["end_datetime"] = end_datetime
+    duration = (end_datetime-start_datetime).seconds
+    _doc["duration"] = duration
+
+    sample_rate = default_sample_rate_dict[file_type]
+    for i, channel_label in enumerate(channel_labels):
+      _channel_doc = {
+        "channel_index":i,
+        "channel_label":channel_label,
+        "sample_rate":sample_rate,
+        "signals":[ record[channel_label] for record in data ]
+      }
+      _channel_list.append(_channel_doc)
+
     return _doc,_channel_list
-    
+
   def segmentation(self,max_segment_length=None):
     _segments = []
     for channel_doc in self.__channel_list:
@@ -154,7 +194,7 @@ class DataFile:
           offset_data_point_end = n_data_point
         segment_signals = list(file_signals[offset_data_point:offset_data_point_end])
         
-        segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],channel_index,channel_label,sample_rate,start_datetime,end_datetime,segment_signals)
+        segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],self.__doc["vendor"],self.__doc["file_type"],channel_index,channel_label,sample_rate,start_datetime,end_datetime,segment_signals)
         _segments.append(segment)
     return _segments
 
