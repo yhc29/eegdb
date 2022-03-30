@@ -22,6 +22,10 @@ class DataFile:
       self.__doc["fileid"] = None
     if sessionid:
       self.__doc["sessionid"] = sessionid
+    if vendor:
+      self.__doc["vendor"] = sessionid
+    if file_type:
+      self.__doc["file_type"] = file_type
 
     if file_type == "edf":
       if load_data:
@@ -34,7 +38,7 @@ class DataFile:
     elif file_type == "unknown":
       pass
     else:
-      print(file_type,"is not supported")
+      print(vendor,file_type,"is not supported")
       self.__channel_list = None
   
 
