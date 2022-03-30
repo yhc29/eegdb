@@ -22,8 +22,8 @@ def test_data_import(eegdb,data_folder):
     if os.path.isdir(session_folder):
       subjectid = sessionid[:-2]
       for filename in os.listdir(session_folder):
-        fileid = filename.split(".")[0]
         file_ext = filename.split(".")[-1]
+        fileid = filename.split("."+file_ext)[0]
         if file_ext == "edf":
           try:
             data_file_dict[fileid][2] = session_folder + "/" + filename
