@@ -144,7 +144,11 @@ class DataFile:
       for line in lines:
         line = line.strip().strip('\x00')
         relative_time_str = line.split("\t")[0]
-        annotation = line.split("\t")[1]
+        try:
+          annotation = line.split("\t")[1]
+        except:
+          print("annotation record read error.")
+          continue
 
         relative_hour = int(relative_time_str.split(":")[0])
         relative_min = int(relative_time_str.split(":")[1])
