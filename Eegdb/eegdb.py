@@ -50,7 +50,7 @@ class Eegdb:
     print("import segment data to database")
     self.import_docs(segment_docs,segments_collection)
 
-  def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=1,annotation_filepath=None,check_existing=True):
+  def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=None,annotation_filepath=None,check_existing=True):
     import_edf_flag = True
     import_annotation_flag = True
 
@@ -83,7 +83,7 @@ class Eegdb:
 
         # import segments
         # print("import segment data to database, segmentation with max_segment_length =",max_segment_length)
-        segment_docs = [x.get_doc() for x in data_file.segmentation(max_segment_length)]
+        segment_docs = [x.get_doc() for x in data_file.segmentation(max_segment_length=max_segment_length)]
         segments_collection = "segments"
         self.import_docs(segment_docs,segments_collection)
     elif annotation_filepath:

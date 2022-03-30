@@ -7,6 +7,8 @@ from dateutil.relativedelta import relativedelta
 
 from Eegdb.segment import Segment
 
+MAX_SIGNAL_ARRAY_LENGTH = 180*200
+
 class DataFile:
   def __init__(self,subjectid=None,filepath=None,file_type=None,sessionid=None,load_data=True):
     if not file_type:
@@ -103,24 +105,26 @@ class DataFile:
     # print("header",header)
     return _doc,_channel_list
 
-  def segmentation(self,max_length):
+  def segmentation(self,max_segment_length=None):
     _segments = []
     for channel_doc in self.__channel_list:
       channel_index = channel_doc["channel_index"]
       channel_label = channel_doc["channel_label"]
       sample_rate = channel_doc["sample_rate"]
+      if not max_segment_length:
+        max_segment_length = math.ceil(MAX_SIGNAL_ARRAY_LENGTH/sample_rate)
       file_signals = channel_doc["signals"]
       n_data_point = len(file_signals)
-      n_segment = math.ceil(self.__doc["duration"]/max_length)
+      n_segment = math.ceil(self.__doc["duration"]/max_segment_length)
       for segment_index in range(n_segment):
-        offset = segment_index*max_length
+        offset = segment_index*max_segment_length
         start_datetime = self.__doc["start_datetime"] + relativedelta(seconds = offset)
-        end_datetime = start_datetime + relativedelta(seconds = max_length)
+        end_datetime = start_datetime + relativedelta(seconds = max_segment_length)
         if end_datetime > self.__doc["end_datetime"]:
           end_datetime = self.__doc["end_datetime"]
 
         offset_data_point = int(offset*sample_rate)
-        offset_data_point_end = offset_data_point + int(max_length*sample_rate)
+        offset_data_point_end = offset_data_point + int(max_segment_length*sample_rate)
         if offset_data_point_end > n_data_point:
           offset_data_point_end = n_data_point
         segment_signals = list(file_signals[offset_data_point:offset_data_point_end])
