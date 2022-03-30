@@ -86,8 +86,9 @@ class Eegdb:
         segment_docs = [x.get_doc() for x in data_file.segmentation(max_segment_length)]
         segments_collection = "segments"
         self.import_docs(segment_docs,segments_collection)
-    else:
-      fileid = filepath.split("/")[-1]
+    elif annotation_filepath:
+      fileid = annotation_filepath.split("/")[-1]
+      fileid.replace(".txt",".edf")
       existing_file_doc = self.__database["files"].find_one({"subjectid":subjectid,"fileid":fileid})
       if existing_file_doc:
         data_file = DataFile()
