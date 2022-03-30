@@ -10,17 +10,22 @@ from Eegdb.segment import Segment
 class DataFile:
   def __init__(self,subjectid,filepath,file_type,sessionid=None):
     self.__doc = { "subjectid": subjectid }
-    self.__doc["fileid"] = filepath.split("/")[-1]
+    if filepath:
+      self.__doc["fileid"] = filepath.split("/")[-1]
+    else:
+      self.__doc["fileid"] = None
     if sessionid:
       self.__doc["sessionid"] = sessionid
 
     if file_type == "edf":
       _edf_doc,self.__channel_list = self.load_edf(filepath)
+      self.__doc.update(_edf_doc)
+    if file_type == "unknown":
+      pass
     else:
       print(file_type,"is not supported")
       self.__channel_list = None
   
-    self.__doc.update(_edf_doc)
 
   def get_doc(self):
     return self.__doc.copy()

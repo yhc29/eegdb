@@ -84,6 +84,9 @@ class Eegdb:
         segment_docs = [x.get_doc() for x in data_file.segmentation(max_segment_length)]
         segments_collection = "segments"
         self.import_docs(segment_docs,segments_collection)
+    else:
+      file_type = "unknown"
+      data_file = DataFile(subjectid,filepath,file_type,sessionid)
 
     # import annotation
     if annotation_filepath:
