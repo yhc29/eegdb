@@ -13,6 +13,8 @@ MAX_SIGNAL_ARRAY_LENGTH = 180*200
 
 class DataFile:
   def __init__(self,subjectid=None,filepath=None,file_type=None,sessionid=None,vendor=None,load_data=True):
+    if not vendor:
+      vendor = "unknown"
     if not file_type:
       file_type = "unknown"
     self.__doc = { "subjectid": subjectid }
@@ -125,8 +127,9 @@ class DataFile:
 
     json_str = json_bytes.decode('utf-8')
     data = json.loads(json_str)
-    print(data.keys())
-
+    print(data[0])
+    return _doc,_channel_list
+    
   def segmentation(self,max_segment_length=None):
     _segments = []
     for channel_doc in self.__channel_list:
