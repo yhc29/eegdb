@@ -46,7 +46,6 @@ def test_data_import(eegdb,data_folder):
     subjectid,sessionid,filepath,annotation_filepath = file_info
     if not filepath:
       print("No edf found for",file_info)
-      continue
     if not annotation_filepath:
       print("No edf found for",file_info)
     eegdb.import_csr_eeg_file(subjectid,sessionid,filepath,max_segment_length=180,annotation_filepath=annotation_filepath)

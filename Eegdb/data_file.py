@@ -8,7 +8,9 @@ from dateutil.relativedelta import relativedelta
 from Eegdb.segment import Segment
 
 class DataFile:
-  def __init__(self,subjectid,filepath,file_type,sessionid=None):
+  def __init__(self,subjectid=None,filepath=None,file_type=None,sessionid=None,load_data=False):
+    if not file_type:
+      file_type = "unknown"
     self.__doc = { "subjectid": subjectid }
     if filepath:
       self.__doc["fileid"] = filepath.split("/")[-1]
@@ -18,8 +20,9 @@ class DataFile:
       self.__doc["sessionid"] = sessionid
 
     if file_type == "edf":
-      _edf_doc,self.__channel_list = self.load_edf(filepath)
-      self.__doc.update(_edf_doc)
+      if load_data:
+        _edf_doc,self.__channel_list = self.load_edf(filepath)
+        self.__doc.update(_edf_doc)
     if file_type == "unknown":
       pass
     else:
@@ -44,6 +47,16 @@ class DataFile:
     self.__doc["start_datetime"] = new_start_datetime
     new_end_datetime = new_start_datetime+relativedelta(seconds = duration)
     self.__doc["end_datetime"] = new_end_datetime
+  
+  def load_mongo_doc(self,mongo_doc):
+    self.__doc["subjectid"] =mongo_doc["subjectid"]
+    self.__doc["fileid"] =mongo_doc["fileid"]
+    self.__doc["sessionid"] =mongo_doc["sessionid"]
+    self.__doc["n_channel"] =mongo_doc["n_channel"]
+    self.__doc["channel_labels"] =mongo_doc["channel_labels"]
+    self.__doc["start_datetime"] =mongo_doc["start_datetime"]
+    self.__doc["duration"] =mongo_doc["duration"]
+    self.__doc["end_datetime"] =mongo_doc["end_datetime"]
 
   def load_edf(self,filepath):
     _doc = {}

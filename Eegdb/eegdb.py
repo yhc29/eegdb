@@ -61,6 +61,8 @@ class Eegdb:
         fileid = filepath.split("/")[-1]
         existing_file_doc = self.__database["files"].find_one({"subjectid":subjectid,"fileid":fileid})
         if existing_file_doc:
+          data_file = DataFile()
+          data_file.load_mongo_doc(existing_file_doc)
           print(filepath,"exists, skip import edf.")
           import_edf_flag = False
 
@@ -85,8 +87,13 @@ class Eegdb:
         segments_collection = "segments"
         self.import_docs(segment_docs,segments_collection)
     else:
-      file_type = "unknown"
-      data_file = DataFile(subjectid,filepath,file_type,sessionid)
+      fileid = filepath.split("/")[-1]
+      existing_file_doc = self.__database["files"].find_one({"subjectid":subjectid,"fileid":fileid})
+      if existing_file_doc:
+        data_file = DataFile()
+        data_file.load_mongo_doc(existing_file_doc)
+      else:
+        return -2
 
     # import annotation
     if annotation_filepath:
