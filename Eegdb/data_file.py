@@ -8,7 +8,7 @@ from dateutil.relativedelta import relativedelta
 from Eegdb.segment import Segment
 
 class DataFile:
-  def __init__(self,subjectid=None,filepath=None,file_type=None,sessionid=None,load_data=False):
+  def __init__(self,subjectid=None,filepath=None,file_type=None,sessionid=None,load_data=True):
     if not file_type:
       file_type = "unknown"
     self.__doc = { "subjectid": subjectid }
@@ -23,7 +23,7 @@ class DataFile:
       if load_data:
         _edf_doc,self.__channel_list = self.load_edf(filepath)
         self.__doc.update(_edf_doc)
-    if file_type == "unknown":
+    elif file_type == "unknown":
       pass
     else:
       print(file_type,"is not supported")
