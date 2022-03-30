@@ -139,7 +139,7 @@ class DataFile:
     fileid = self.__doc["fileid"]
     file_start_datetime = self.__doc["start_datetime"]
 
-    with open(filepath,encoding='ascii') as f:
+    with open(filepath,encoding='utf-8',errors='ignore') as f:
       lines = f.readlines()
       for line in lines:
         line = line.strip().strip('\x00')
