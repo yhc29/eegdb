@@ -4,13 +4,15 @@ import numpy as np
 import math
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
+import gzip
+import json
 
 from Eegdb.segment import Segment
 
 MAX_SIGNAL_ARRAY_LENGTH = 180*200
 
 class DataFile:
-  def __init__(self,subjectid=None,filepath=None,file_type=None,sessionid=None,load_data=True):
+  def __init__(self,subjectid=None,filepath=None,file_type=None,sessionid=None,vendor=None,load_data=True):
     if not file_type:
       file_type = "unknown"
     self.__doc = { "subjectid": subjectid }
@@ -23,8 +25,12 @@ class DataFile:
 
     if file_type == "edf":
       if load_data:
-        _edf_doc,self.__channel_list = self.load_edf(filepath)
-        self.__doc.update(_edf_doc)
+        _file_info_doc,self.__channel_list = self.load_edf(filepath)
+        self.__doc.update(_file_info_doc)
+    elif vendor == "samsung_wearable" and file_type in ["bppg"]:
+      if load_data:
+        _file_info_doc,self.__channel_list = self.load_samsung_wearable_data(filepath,file_type)
+        self.__doc.update(_file_info_doc)
     elif file_type == "unknown":
       pass
     else:
@@ -104,6 +110,18 @@ class DataFile:
     header = f.getHeader()
     # print("header",header)
     return _doc,_channel_list
+
+  def load_samsung_wearable_data(self, filepath,file_type):
+    _doc = {}
+    _channel_list = []
+
+    # df = pd.read_json(fn, compression='gzip')
+    with gzip.open(filepath, 'r') as f:
+      json_bytes = f.read()
+
+    json_str = json_bytes.decode('utf-8')
+    data = json.loads(json_str)
+    print(data.keys())
 
   def segmentation(self,max_segment_length=None):
     _segments = []
