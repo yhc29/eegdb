@@ -66,7 +66,7 @@ class DataFile:
   
   def set_end_datetime(self,new_end_datetime):
     self.__doc["end_datetime"] = new_end_datetime
-    self.__doc["duration"] = self.__doc["start_datetime"] - new_end_datetime
+    self.__doc["duration"] = (self.__doc["start_datetime"] - new_end_datetime).total_seconds()
   
   def load_mongo_doc(self,mongo_doc):
     self.__doc["subjectid"] =mongo_doc["subjectid"]
@@ -151,7 +151,7 @@ class DataFile:
     _doc["start_datetime"] = start_datetime
     end_datetime = datetime.fromtimestamp(data[-1]["Timestamp"]/1000.0)
     _doc["end_datetime"] = end_datetime
-    duration = (end_datetime-start_datetime).seconds
+    duration = (end_datetime-start_datetime).total_seconds()
     _doc["duration"] = duration
 
     sample_rate = default_sample_rate_dict[file_type]
@@ -236,10 +236,14 @@ class DataFile:
     
     count = 0
     n = len(sorted_data_file_list)
+    finished_perc_list = []
     for new_data_file in sorted_data_file_list:
+      count += 1
       finished_perc = int(count*100/n)
-      if int(count*100/n) in [ 10,20,30,40,50,60,70,80,90 ]:
+      if finished_perc in [ 10,20,30,40,50,60,70,80,90 ] and finished_perc not in finished_perc_list:
+        finished_perc_list.append(finished_perc)
         print(str(finished_perc)+"% " + "finished.")
+
       new_channel_list = new_data_file.get_channels()
       for channel_doc in new_channel_list:
         channel_index = channel_doc["channel_index"]
