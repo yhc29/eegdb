@@ -206,7 +206,7 @@ class DataFile:
         max_signal_array_length = MAX_SIGNAL_ARRAY_LENGTH
       channel_signals = channel_doc["signals"]
       n_data_point = len(channel_signals)
-      n_segment = math.ceil(n_data_point/channel_signals)
+      n_segment = math.ceil(n_data_point/max_signal_array_length)
       for segment_index in range(n_segment):
         offset_data_point = segment_index*max_signal_array_length
         offset_data_point_end = offset_data_point + max_signal_array_length
@@ -220,6 +220,7 @@ class DataFile:
   
   def signals_concatenate(self,sorted_data_file_list):
     new_channel_dict = {}
+    
     for channel_doc in self.__channel_list:
       channel_index = channel_doc["channel_index"]
       channel_label = channel_doc["channel_label"]
@@ -233,7 +234,12 @@ class DataFile:
       channel_key = (channel_index,channel_label,sample_rate)
       new_channel_dict[channel_key] = [ time_points, signals ]
     
+    count = 0
+    n = len(sorted_data_file_list)
     for new_data_file in sorted_data_file_list:
+      finished_perc = int(count*100/n)
+      if int(count*100/n) in [ 10,20,30,40,50,60,70,80,90 ]:
+        print(str(finished_perc)+"% " + "finished.")
       new_channel_list = new_data_file.get_channels()
       for channel_doc in new_channel_list:
         channel_index = channel_doc["channel_index"]
