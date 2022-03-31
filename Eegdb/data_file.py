@@ -25,7 +25,7 @@ class DataFile:
     if sessionid:
       self.__doc["sessionid"] = sessionid
     if vendor:
-      self.__doc["vendor"] = sessionid
+      self.__doc["vendor"] = vendor
     if file_type:
       self.__doc["file_type"] = file_type
 

@@ -6,6 +6,7 @@ import os
 import math
 from datetime import datetime
 import pymongo
+import csv
 
 from Eegdb.data_file import DataFile
 
@@ -113,7 +114,7 @@ class Eegdb:
           # print("import annotation data to database")
           self.import_docs(annotation_docs,annotation_collection)
 
-  def import_subject_data(self,vendor,file_type,subjectid,subject_filepath_list):
+  def import_samsung_wearable_data(self,vendor,file_type,subjectid,subject_filepath_list):
     subject_data_list = []
     count = 0
     n = len(subject_filepath_list)
@@ -142,6 +143,36 @@ class Eegdb:
       # end_datetime = segments[-1].get_doc()["end_datetime"]
       # print(start_datetime,end_datetime,(end_datetime-start_datetime).total_seconds())
       # print("len(segments)",len(segments))
+  
+  def import_samsung_wearable_annotation(self,annotation_folder):
+    vendor = "samsung_wearable"
+    _file_list = []
+    _annotation_docs = []
+    # scan csv files in the folder
+    for filename in os.listdir(annotation_folder):
+      if os.path.isfile(os.path.join(annotation_folder, filename)):
+        if filename.split(".")[-1] == "csv":
+          _file_list.append( annotation_folder + filename)
+    for file_path in _file_list:
+      fileid = file_path.split("/")[-1]
+      _annotation_label = fileid.split("-")[0]
+      if _annotation_label not in ["checkin","seizure","weather"]:
+        continue
+      with open(file_path,encoding='utf-8-sig') as f:
+        csv_reader = csv.DictReader(f)
+        for row in csv_reader:
+          subjectid = row["AWSID"]
+          time = datetime.strptime(row["date"], '%m/%d/%Y') if _annotation_label == "weather" else datetime.strptime(row["timestamp"], '%d-%b-%Y %H:%M:%S')
+          _tmp_doc = {"subjectid":subjectid,"fileid":fileid,"vendor":vendor,"annotation_label":_annotation_label,"time":time}
+          for column in row.keys():
+            if column in [ "AWSID", "timestamp", "date"]:
+              continue
+            _tmp_doc[column] = float(row[column]) if _annotation_label == "weather" else row[column]
+          _annotation_docs.append(_tmp_doc)
+    _annotation_collection = "annotations"
+    # print("import_samsung_wearable_annotation")
+    self.import_docs(_annotation_docs,_annotation_collection)
+          
 
 
 

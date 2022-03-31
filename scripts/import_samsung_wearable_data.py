@@ -15,7 +15,7 @@ from Eegdb.eegdb import Eegdb
 
 import config.db_config_ibm as config_file
 
-def test_data_import(eegdb,data_folder):
+def signal_data_import(eegdb,data_folder):
   import_queue = []
   vendor = "samsung_wearable"
   for file_type in ["bppg","hribi","gyro"]:
@@ -40,17 +40,21 @@ def test_data_import(eegdb,data_folder):
   for import_task in import_queue:
     vendor,file_type,subjectid,subject_filepath_list = import_task[0],import_task[1],import_task[2],import_task[3]
     print("import subjectid:",subjectid,"file_type:",file_type,"subject_filepath_list:",len(subject_filepath_list))
-    eegdb.import_subject_data(vendor,file_type,subjectid,subject_filepath_list)
+    eegdb.import_samsung_wearable_data(vendor,file_type,subjectid,subject_filepath_list)
     finished_task_count += 1
     print(finished_task_count,"/",total_task_count, "imported.")
     my_timer.get_progress(finished_task_count,total_task_count,p=1,show=True)
+
+def annotation_import(eegdb,annotation_folder):
+  eegdb.import_samsung_wearable_annotation(annotation_folder)
 
 
 if __name__ == '__main__':
   my_timer = Timer()
 
   eegdb = Eegdb(config_file.mongo_url,config_file.samsung_wearable_eegdb_name,config_file.output_folder,config_file.samsung_wearable_data_folder)
-  test_data_import(eegdb,config_file.samsung_wearable_data_folder)
+  # signal_data_import(eegdb,config_file.samsung_wearable_data_folder)
+  signal_data_import(eegdb,config_file.samsung_wearable_annotation_folder)
 
 
 
