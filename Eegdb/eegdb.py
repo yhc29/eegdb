@@ -53,6 +53,7 @@ class Eegdb:
   def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=None,annotation_filepath=None,check_existing=True):
     import_edf_flag = True
     import_annotation_flag = True
+    vendor = "csr_uh"
 
     print("import",subjectid,sessionid,filepath,annotation_filepath)
 
@@ -70,7 +71,7 @@ class Eegdb:
         # print("load edf file")
         file_type = "edf"
         try:
-          data_file = DataFile(subjectid,filepath,file_type,sessionid)
+          data_file = DataFile(subjectid,filepath,file_type,sessionid,vendor=vendor)
         except:
           print("Read EDF error on", filepath)
           return -1
@@ -111,6 +112,38 @@ class Eegdb:
           annotation_collection = "annotations"
           # print("import annotation data to database")
           self.import_docs(annotation_docs,annotation_collection)
+
+  def import_subject_data(self,vendor,file_type,subjectid,subject_filepath_list):
+    subject_data_list = []
+    count = 0
+    n = len(subject_filepath_list)
+    finished_perc_list = []
+    for filepath in subject_filepath_list:
+      # count += 1
+      # finished_perc = int(count*100/n)
+      # if finished_perc in [ 10,20,30,40,50,60,70,80,90 ] and finished_perc not in finished_perc_list:
+      #   finished_perc_list.append(finished_perc)
+      #   print(str(finished_perc)+"% " + "finished.")
+
+      data_file = DataFile(subjectid=subjectid,filepath=filepath,file_type=file_type,sessionid=None,vendor=vendor)
+      subject_data_list.append(data_file)
+    file_collection = "files"
+    self.import_docs([ x.get_doc() for x in subject_data_list], file_collection)
+
+    subject_data_list = sorted(subject_data_list,key = lambda x:x.get_doc()["start_datetime"])
+    merged_subject_data = subject_data_list[0]
+    if len(subject_data_list)>1:
+      merged_subject_data.signals_concatenate(subject_data_list[1:])
+      segments = merged_subject_data.segmentation_by_data_points()
+      segment_docs = [ x.get_doc() for x in segments ]
+      segments_collection = "segments"
+      self.import_docs(segment_docs,segments_collection)
+      # start_datetime = segments[0].get_doc()["start_datetime"]
+      # end_datetime = segments[-1].get_doc()["end_datetime"]
+      # print(start_datetime,end_datetime,(end_datetime-start_datetime).total_seconds())
+      # print("len(segments)",len(segments))
+
+
 
   def build_index(self):
     print("build_index: files")
