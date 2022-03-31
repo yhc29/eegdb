@@ -47,6 +47,8 @@ class DataFile:
   def get_doc(self):
     return self.__doc.copy()
 
+  def get_channels(self):
+    return self.__channel_list.copy()
   def get_channel(self,channel_index):
     return self.__channel_list[channel_index].copy()
   
@@ -61,6 +63,10 @@ class DataFile:
     self.__doc["start_datetime"] = new_start_datetime
     new_end_datetime = new_start_datetime+relativedelta(seconds = duration)
     self.__doc["end_datetime"] = new_end_datetime
+  
+  def set_end_datetime(self,new_end_datetime):
+    self.__doc["end_datetime"] = new_end_datetime
+    self.__doc["duration"] = self.__doc["start_datetime"] - new_end_datetime
   
   def load_mongo_doc(self,mongo_doc):
     self.__doc["subjectid"] =mongo_doc["subjectid"]
@@ -138,16 +144,6 @@ class DataFile:
     N_channel = len(channel_labels)
     _doc["n_channel"] = N_channel
 
-    start_datetime = f.getStartdatetime()
-    _doc["start_datetime"] = start_datetime
-    # print("start_datetime",start_datetime)
-
-    duration = f.getFileDuration()
-    _doc["duration"] = duration
-    # print("duration",duration)
-    end_datetime = start_datetime+relativedelta(seconds = duration)
-    _doc["end_datetime"] = end_datetime
-
     # n_data_point = len(data)
     # print("n_data_point:",n_data_point)
 
@@ -163,7 +159,8 @@ class DataFile:
       _channel_doc = {
         "channel_index":i,
         "channel_label":channel_label,
-        "sample_rate":sample_rate,
+        "sample_rate": sample_rate,
+        "time_points": [ datetime.fromtimestamp(record["Timestamp"]/1000.0) for record in data ],
         "signals":[ record[channel_label] for record in data ]
       }
       _channel_list.append(_channel_doc)
@@ -180,7 +177,7 @@ class DataFile:
         max_segment_length = math.ceil(MAX_SIGNAL_ARRAY_LENGTH/sample_rate)
       file_signals = channel_doc["signals"]
       n_data_point = len(file_signals)
-      n_segment = math.ceil(self.__doc["duration"]/max_segment_length)
+      n_segment = math.ceil(n_data_point/MAX_SIGNAL_ARRAY_LENGTH)
       for segment_index in range(n_segment):
         offset = segment_index*max_segment_length
         start_datetime = self.__doc["start_datetime"] + relativedelta(seconds = offset)
@@ -197,6 +194,74 @@ class DataFile:
         segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],self.__doc["vendor"],self.__doc["file_type"],channel_index,channel_label,sample_rate,start_datetime,end_datetime,segment_signals)
         _segments.append(segment)
     return _segments
+  
+  def segmentation_by_data_points(self,max_signal_array_length=None):
+    _segments = []
+    for channel_doc in self.__channel_list:
+      channel_index = channel_doc["channel_index"]
+      channel_label = channel_doc["channel_label"]
+      sample_rate = channel_doc["sample_rate"]
+      time_points = channel_doc["time_points"]
+      if not max_signal_array_length:
+        max_signal_array_length = MAX_SIGNAL_ARRAY_LENGTH
+      channel_signals = channel_doc["signals"]
+      n_data_point = len(channel_signals)
+      n_segment = math.ceil(n_data_point/channel_signals)
+      for segment_index in range(n_segment):
+        offset_data_point = segment_index*max_signal_array_length
+        offset_data_point_end = offset_data_point + max_signal_array_length
+        if offset_data_point_end > n_data_point:
+          offset_data_point_end = n_data_point
+        segment_time_points = list(time_points[offset_data_point:offset_data_point_end])
+        segment_signals = list(channel_signals[offset_data_point:offset_data_point_end])
+        segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],self.__doc["vendor"],self.__doc["file_type"],channel_index,channel_label,sample_rate,segment_time_points[0],segment_time_points[-1],segment_signals,segment_time_points)
+        _segments.append(segment)
+    return _segments
+  
+  def signals_concatenate(self,sorted_data_file_list):
+    new_channel_dict = {}
+    for channel_doc in self.__channel_list:
+      channel_index = channel_doc["channel_index"]
+      channel_label = channel_doc["channel_label"]
+      sample_rate = channel_doc["sample_rate"]
+      signals = channel_doc["signals"]
+      try:
+        time_points = channel_doc["time_points"]
+      except:
+        print("No time_points for channel data.")
+        return -1
+      channel_key = (channel_index,channel_label,sample_rate)
+      new_channel_dict[channel_key] = [ time_points, signals ]
+    
+    for new_data_file in sorted_data_file_list:
+      new_channel_list = new_data_file.get_channels()
+      for channel_doc in new_channel_list:
+        channel_index = channel_doc["channel_index"]
+        channel_label = channel_doc["channel_label"]
+        sample_rate = channel_doc["sample_rate"]
+        signals = channel_doc["signals"]
+        try:
+          time_points = channel_doc["time_points"]
+        except:
+          continue
+        channel_key = (channel_index,channel_label,sample_rate)
+        try:
+          new_channel_dict[channel_key][0] += time_points
+          new_channel_dict[channel_key][1] += signals
+        except:
+          print("No matched channel exists.")
+    _new_channel_list = []
+    for channel_key,channel_data in new_channel_dict.items():
+      _channel_doc = {
+        "channel_index": channel_key[0],
+        "channel_label":channel_key[1],
+        "sample_rate": channel_key[2],
+        "time_points": channel_data[0],
+        "signals": channel_data[1]
+      }
+      _new_channel_list.append(_channel_doc)
+    self.__channel_list = _new_channel_list
+    self.set_end_datetime(_new_channel_list[0]["time_points"][-1])
 
   def load_annotations(self,filepath):
     annotation_docs = []
