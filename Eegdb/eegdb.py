@@ -158,6 +158,7 @@ class Eegdb:
       _annotation_label = fileid.split("-")[0]
       if _annotation_label not in ["checkin","seizure","weather"]:
         continue
+      print("load",file_path)
       with open(file_path,encoding='utf-8-sig') as f:
         csv_reader = csv.DictReader(f)
         for row in csv_reader:

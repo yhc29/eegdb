@@ -54,7 +54,7 @@ if __name__ == '__main__':
 
   eegdb = Eegdb(config_file.mongo_url,config_file.samsung_wearable_eegdb_name,config_file.output_folder,config_file.samsung_wearable_data_folder)
   # signal_data_import(eegdb,config_file.samsung_wearable_data_folder)
-  signal_data_import(eegdb,config_file.samsung_wearable_annotation_folder)
+  annotation_import(eegdb,config_file.samsung_wearable_annotation_folder)
 
 
 
