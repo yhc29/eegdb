@@ -51,7 +51,7 @@ class Eegdb:
     print("import segment data to database")
     self.import_docs(segment_docs,segments_collection)
 
-  def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=None,annotation_filepath=None,check_existing=True):
+  def import_csr_eeg_file(self,subjectid,sessionid,filepath,max_segment_length=None,annotation_filepath=None,check_existing=True,max_sample_rate=None):
     import_edf_flag = True
     import_annotation_flag = True
     vendor = "csr_uh"
@@ -80,6 +80,12 @@ class Eegdb:
         # import file
         # print("import edf file info to database")
         file_doc = data_file.get_doc()
+        if max_sample_rate:
+          first_channel = data_file.get_channel(0)
+          first_channel_sr = first_channel["sample_rate"]
+          if first_channel_sr>max_sample_rate:
+            print("sample_rate",first_channel_sr,"> max_sample_rate",max_sample_rate," import terminated.")
+            return -3
         file_collection = "files"
         self.import_docs([file_doc],file_collection)
 
