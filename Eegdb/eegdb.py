@@ -26,6 +26,9 @@ class Eegdb:
   def drop_collections(self,collection_name_list):
     for collection_name in collection_name_list:
       self.__database[collection_name].drop()
+  
+  def get_collection(self,collection_name):
+    return self.__database[collection_name]
 
   def import_docs(self,doc_list,collection,batch_size=None):
     if not batch_size:
