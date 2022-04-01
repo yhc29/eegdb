@@ -156,22 +156,33 @@ class Eegdb:
     for file_path in _file_list:
       fileid = file_path.split("/")[-1]
       _annotation_label = fileid.split("-")[0]
-      if _annotation_label not in ["checkin","seizure","weather"]:
+      if _annotation_label not in ["checkin","seizure","weather","EMUseizure"]:
         continue
       print("load",file_path)
       with open(file_path,encoding='utf-8-sig') as f:
         csv_reader = csv.DictReader(f)
         for row in csv_reader:
           subjectid = row["AWSID"]
-          time = datetime.strptime(row["date"], '%m/%d/%Y') if _annotation_label == "weather" else datetime.strptime(row["timestamp"], '%d-%b-%Y %H:%M:%S')
-          _tmp_doc = {"subjectid":subjectid,"fileid":fileid,"vendor":vendor,"annotation_label":_annotation_label,"time":time}
+          _tmp_doc = {"subjectid":subjectid,"fileid":fileid,"vendor":vendor,"annotation_label":_annotation_label}
+          # start time column
+          if _annotation_label == "weather":
+            start_datetime = datetime.strptime(row["date"], '%m/%d/%Y')
+          elif _annotation_label == "EMUseizure":
+            start_datetime = datetime.strptime(row["Seizure_beginning"], '%m/%d/%y %H:%M')
+          else:
+            start_datetime = datetime.strptime(row["timestamp"], '%d-%b-%Y %H:%M:%S')
+          _tmp_doc["start_datetime"] = start_datetime
+          if _annotation_label == "EMUseizure":
+            end_datetime = datetime.strptime(row["Seizure_termination"], '%m/%d/%y %H:%M')
+            _tmp_doc["end_datetime"] = end_datetime
           for column in row.keys():
-            if column in [ "AWSID", "timestamp", "date"]:
+            if column in [ "AWSID", "timestamp", "date","Seizure_beginning","Seizure_termination"]:
               continue
             _tmp_doc[column] = float(row[column]) if _annotation_label == "weather" else row[column]
           _annotation_docs.append(_tmp_doc)
     _annotation_collection = "annotations"
     # print("import_samsung_wearable_annotation")
+    self.drop_collections([_annotation_collection])
     self.import_docs(_annotation_docs,_annotation_collection)
           
 
