@@ -21,6 +21,8 @@ def test_data_import(eegdb,data_folder):
     session_folder = os.path.join(data_folder, sessionid)
     if os.path.isdir(session_folder):
       subjectid = sessionid[:-2]
+      if subjectid[0]!="I":
+        continue
       for filename in os.listdir(session_folder):
         file_ext = filename.split(".")[-1]
         fileid = filename.split("."+file_ext)[0]

@@ -195,19 +195,11 @@ class DataFile:
         _segments.append(segment)
     return _segments
 
-  def get_fixed_segment_start_datetime(segment_start_datetime,segment_duration):
-    _start_hour, _start_minute = segment_start_datetime.hour, segment_start_datetime.minute
-    _total_minutes = segment_duration*(_start_hour*60 + _start_minute)//segment_duration
-    _new_hour = _total_minutes//60
-    _new_minute = _total_minutes%60
-    _new_datetime = segment_start_datetime.replace(hour=_new_hour,minute=_new_minute)
-    return _new_datetime
-
   def segmentation_by_time(self,segment_duration=60):
     _segments = []
     _file_start_datetime = self.__doc["start_datetime"]
     _file_end_datetime = self.__doc["end_datetime"]
-    _segment_start_datetime = self.get_fixed_segment_start_datetime(_file_start_datetime,segment_duration)
+    _segment_start_datetime = get_fixed_segment_start_datetime(_file_start_datetime,segment_duration)
     for channel_doc in self.__channel_list:
       channel_index = channel_doc["channel_index"]
       channel_label = channel_doc["channel_label"]
@@ -342,3 +334,18 @@ class DataFile:
         annotation_doc = {"subjectid":subjectid, "fileid":fileid, "file_time":relative_time_in_seconds, "time":absolute_time, "annotation":annotation}
         annotation_docs.append(annotation_doc)
     return annotation_docs
+
+
+
+
+
+
+
+
+def get_fixed_segment_start_datetime(segment_start_datetime,segment_duration):
+  _start_hour, _start_minute = segment_start_datetime.hour, segment_start_datetime.minute
+  _total_minutes = segment_duration*(_start_hour*60 + _start_minute)//segment_duration
+  _new_hour = _total_minutes//60
+  _new_minute = _total_minutes%60
+  _new_datetime = segment_start_datetime.replace(hour=_new_hour,minute=_new_minute)
+  return _new_datetime
