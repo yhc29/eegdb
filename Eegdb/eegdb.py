@@ -15,6 +15,7 @@ BATCH_SIZE = 5000
 class Eegdb:
   def __init__(self,mongo_url,db_name,output_folder,data_folder=None):
     self.__mongo_client = pymongo.MongoClient(mongo_url)
+    self.__db_name = db_name
     self.__database = self.__mongo_client[db_name]
     self.__output_folder = output_folder
     if not os.path.exists(output_folder):
@@ -22,6 +23,9 @@ class Eegdb:
     self.__data_folder = data_folder
     if not os.path.exists(self.__data_folder):
       print("Data folder",self.__data_folder,"does not exist.")
+  
+  def get_db_name(self):
+    return self.__db_name
 
   def drop_collections(self,collection_name_list):
     for collection_name in collection_name_list:
@@ -95,6 +99,75 @@ class Eegdb:
         # import segments
         # print("import segment data to database, segmentation with max_segment_length =",max_segment_length)
         segment_docs = [x.get_doc() for x in data_file.segmentation(max_segment_length=max_segment_length)]
+        segments_collection = "segments"
+        self.import_docs(segment_docs,segments_collection)
+    elif annotation_filepath:
+      fileid = annotation_filepath.split("/")[-1]
+      fileid.replace(".txt",".edf")
+      existing_file_doc = self.__database["files"].find_one({"subjectid":subjectid,"fileid":fileid})
+      if existing_file_doc:
+        data_file = DataFile()
+        data_file.load_mongo_doc(existing_file_doc)
+      else:
+        return -2
+
+    # import annotation
+    if annotation_filepath:
+      if check_existing:
+        fileid = annotation_filepath.split("/")[-1].split(".")[0]+".edf"
+        existing_file_doc = self.__database["annotations"].find_one({"subjectid":subjectid,"fileid":fileid})
+        if existing_file_doc:
+          print(filepath,"exists, skip import annotation.")
+          import_annotation_flag = False
+
+      if import_annotation_flag:
+        annotation_docs = data_file.load_annotations(annotation_filepath)
+        if annotation_filepath:
+          annotation_collection = "annotations"
+          # print("import annotation data to database")
+          self.import_docs(annotation_docs,annotation_collection)
+
+  def import_csr_eeg_file_v2(self,subjectid,sessionid,filepath,segment_duration=60,annotation_filepath=None,check_existing=True,max_sample_rate=None):
+    import_edf_flag = True
+    import_annotation_flag = True
+    vendor = "csr_uh"
+
+    print("import",subjectid,sessionid,filepath,annotation_filepath)
+
+    if filepath:
+      if check_existing:
+        fileid = filepath.split("/")[-1]
+        existing_file_doc = self.__database["files"].find_one({"subjectid":subjectid,"fileid":fileid})
+        if existing_file_doc:
+          data_file = DataFile()
+          data_file.load_mongo_doc(existing_file_doc)
+          print(filepath,"exists, skip import edf.")
+          import_edf_flag = False
+
+      if import_edf_flag:
+        # print("load edf file")
+        file_type = "edf"
+        try:
+          data_file = DataFile(subjectid,filepath,file_type,sessionid,vendor=vendor)
+        except:
+          print("Read EDF error on", filepath)
+          return -1
+
+        # import file
+        # print("import edf file info to database")
+        file_doc = data_file.get_doc()
+        if max_sample_rate:
+          first_channel = data_file.get_channel(0)
+          first_channel_sr = first_channel["sample_rate"]
+          if first_channel_sr>max_sample_rate:
+            print("sample_rate",first_channel_sr,"> max_sample_rate",max_sample_rate," import terminated.")
+            return -3
+        file_collection = "files"
+        self.import_docs([file_doc],file_collection)
+
+        # import segments
+        # print("import segment data to database, segmentation with max_segment_length =",max_segment_length)
+        segment_docs = [x.generate_mongo_doc() for x in data_file.segmentation_by_time(segment_duration=segment_duration)]
         segments_collection = "segments"
         self.import_docs(segment_docs,segments_collection)
     elif annotation_filepath:

@@ -28,6 +28,7 @@ def signal_data_import(eegdb,data_folder):
           segment_folder = os.path.join(subject_folder, original_segmentid)
           if os.path.isdir(segment_folder):
             for filename in os.listdir(segment_folder):
+              
               if os.path.isfile(os.path.join(segment_folder, filename)):
                 if filename.split(".")[-1] == file_type:
                   subject_filepath_list.append( segment_folder + "/" + filename)

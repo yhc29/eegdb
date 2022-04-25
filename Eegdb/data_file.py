@@ -194,6 +194,48 @@ class DataFile:
         segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],self.__doc["vendor"],self.__doc["file_type"],channel_index,channel_label,sample_rate,start_datetime,end_datetime,segment_signals)
         _segments.append(segment)
     return _segments
+
+  def get_fixed_segment_start_datetime(segment_start_datetime,segment_duration):
+    _start_hour, _start_minute = segment_start_datetime.hour, segment_start_datetime.minute
+    _total_minutes = segment_duration*(_start_hour*60 + _start_minute)//segment_duration
+    _new_hour = _total_minutes//60
+    _new_minute = _total_minutes%60
+    _new_datetime = segment_start_datetime.replace(hour=_new_hour,minute=_new_minute)
+    return _new_datetime
+
+  def segmentation_by_time(self,segment_duration=60):
+    _segments = []
+    _file_start_datetime = self.__doc["start_datetime"]
+    _file_end_datetime = self.__doc["end_datetime"]
+    _segment_start_datetime = self.get_fixed_segment_start_datetime(_file_start_datetime,segment_duration)
+    for channel_doc in self.__channel_list:
+      channel_index = channel_doc["channel_index"]
+      channel_label = channel_doc["channel_label"]
+      sample_rate = channel_doc["sample_rate"]
+      file_signals = channel_doc["signals"]
+      n_data_point = len(file_signals)
+      segment_count = 0
+      while _segment_start_datetime <= _file_end_datetime:
+        segment_count +=1
+        if segment_count == 1:
+          offset = 0
+        else:
+          offset = (_segment_start_datetime - _file_start_datetime).total_seconds()
+        start_datetime = self.__doc["start_datetime"] + relativedelta(seconds = offset)
+        end_datetime = start_datetime + relativedelta(seconds = segment_duration*60)
+        if end_datetime > self.__doc["end_datetime"]:
+          end_datetime = self.__doc["end_datetime"]
+
+        offset_data_point = int(offset*sample_rate)
+        offset_data_point_end = offset_data_point + int(segment_duration*60*sample_rate)
+        if offset_data_point_end > n_data_point:
+          offset_data_point_end = n_data_point
+        segment_signals = list(file_signals[offset_data_point:offset_data_point_end])
+        
+        segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],self.__doc["vendor"],self.__doc["file_type"],channel_index,channel_label,sample_rate,start_datetime,end_datetime,segment_signals,_segment_start_datetime,segment_duration)
+        _segments.append(segment)
+        _segment_start_datetime = _segment_start_datetime + relativedelta(seconds = segment_duration*60)
+    return _segments
   
   def segmentation_by_data_points(self,max_signal_array_length=None):
     _segments = []

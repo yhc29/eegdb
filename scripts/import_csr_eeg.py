@@ -48,7 +48,8 @@ def test_data_import(eegdb,data_folder):
       print("No edf found for",file_info)
     if not annotation_filepath:
       print("No edf found for",file_info)
-    eegdb.import_csr_eeg_file(subjectid,sessionid,filepath,max_segment_length=None,annotation_filepath=annotation_filepath,max_sample_rate=500)
+    # eegdb.import_csr_eeg_file(subjectid,sessionid,filepath,max_segment_length=None,annotation_filepath=annotation_filepath,max_sample_rate=500)
+    eegdb.import_csr_eeg_file_v2(subjectid,sessionid,filepath,segment_duration=60,annotation_filepath=annotation_filepath,max_sample_rate=500)
     print(imported_file_count,"/",total_file_count, "imported.")
 
 if __name__ == '__main__':
