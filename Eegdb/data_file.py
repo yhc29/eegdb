@@ -201,6 +201,7 @@ class DataFile:
     _segments = []
     _file_start_datetime = self.__doc["start_datetime"]
     _file_end_datetime = self.__doc["end_datetime"]
+    _segment_duration_set = {}
     for channel_doc in self.__channel_list:
       channel_index = channel_doc["channel_index"]
       channel_label = channel_doc["channel_label"]
@@ -214,6 +215,7 @@ class DataFile:
           segment_duration=20
         elif sample_rate<1500:
           segment_duration=10
+      _segment_duration_set.add(segment_duration)
       file_signals = channel_doc["signals"]
       n_data_point = len(file_signals)
       segment_count = 0
@@ -238,6 +240,7 @@ class DataFile:
         segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],self.__doc["vendor"],self.__doc["file_type"],channel_index,channel_label,sample_rate,start_datetime,end_datetime,segment_signals,None,_segment_start_datetime,segment_duration)
         _segments.append(segment)
         _segment_start_datetime = _segment_start_datetime + relativedelta(seconds = segment_duration*60)
+    print(_segment_duration_set)
     return _segments
   
   def segmentation_by_data_points(self,max_signal_array_length=None):
