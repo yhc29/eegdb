@@ -201,7 +201,7 @@ class DataFile:
     _segments = []
     _file_start_datetime = self.__doc["start_datetime"]
     _file_end_datetime = self.__doc["end_datetime"]
-    _segment_duration_set = {}
+    _segment_duration_set = set([])
     for channel_doc in self.__channel_list:
       channel_index = channel_doc["channel_index"]
       channel_label = channel_doc["channel_label"]
