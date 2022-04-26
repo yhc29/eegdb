@@ -22,7 +22,7 @@ class QueryClient:
   def get_db_name(self):
     return self.__db_name
 
-  def segments_collection(self):
+  def get_segments_collection(self):
     return self.__database["segments"]
 
   
@@ -41,7 +41,7 @@ class QueryClient:
     if channel_list:
       _stmt["channel_label"] = {"$in":channel_list}
     _stmt["segment_datetime"] = {"$gte":segment_datetime1,"$lte":segment_datetime2}
-    segment_docs = self.segments_collection.find(_stmt)
+    segment_docs = self.get_segments_collection().find(_stmt)
 
     result = {}
     for doc in segment_docs:
