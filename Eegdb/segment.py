@@ -33,7 +33,7 @@ class Segment:
     _sample_rate = _mongo_doc["sample_rate"]
     _clip_datetime = _start_datetime
     _signals_dict = {}
-    while _clip_datetime <= _end_datetime:
+    while _clip_datetime < _end_datetime:
       _minute = _clip_datetime.minute
       _second = _clip_datetime.second
       offset = (_clip_datetime - _start_datetime).total_seconds()
