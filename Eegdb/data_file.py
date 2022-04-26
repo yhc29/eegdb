@@ -224,7 +224,7 @@ class DataFile:
           offset_data_point_end = n_data_point
         segment_signals = list(file_signals[offset_data_point:offset_data_point_end])
         
-        segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],self.__doc["vendor"],self.__doc["file_type"],channel_index,channel_label,sample_rate,start_datetime,end_datetime,segment_signals,_segment_start_datetime,segment_duration)
+        segment = Segment(self.__doc["subjectid"],self.__doc["fileid"],self.__doc["vendor"],self.__doc["file_type"],channel_index,channel_label,sample_rate,start_datetime,end_datetime,segment_signals,None,_segment_start_datetime,segment_duration)
         _segments.append(segment)
         _segment_start_datetime = _segment_start_datetime + relativedelta(seconds = segment_duration*60)
     return _segments
@@ -344,7 +344,7 @@ class DataFile:
 
 def get_fixed_segment_start_datetime(segment_start_datetime,segment_duration):
   _start_hour, _start_minute = segment_start_datetime.hour, segment_start_datetime.minute
-  _total_minutes = segment_duration*(_start_hour*60 + _start_minute)//segment_duration
+  _total_minutes = (_start_hour*60 + _start_minute)//segment_duration*segment_duration
   _new_hour = _total_minutes//60
   _new_minute = _total_minutes%60
   _new_datetime = segment_start_datetime.replace(hour=_new_hour,minute=_new_minute)
