@@ -199,7 +199,6 @@ class DataFile:
     _segments = []
     _file_start_datetime = self.__doc["start_datetime"]
     _file_end_datetime = self.__doc["end_datetime"]
-    _segment_start_datetime = get_fixed_segment_start_datetime(_file_start_datetime,segment_duration)
     for channel_doc in self.__channel_list:
       channel_index = channel_doc["channel_index"]
       channel_label = channel_doc["channel_label"]
@@ -207,6 +206,7 @@ class DataFile:
       file_signals = channel_doc["signals"]
       n_data_point = len(file_signals)
       segment_count = 0
+      _segment_start_datetime = get_fixed_segment_start_datetime(_file_start_datetime,segment_duration)
       while _segment_start_datetime <= _file_end_datetime:
         segment_count +=1
         if segment_count == 1:
@@ -214,7 +214,7 @@ class DataFile:
         else:
           offset = (_segment_start_datetime - _file_start_datetime).total_seconds()
         start_datetime = self.__doc["start_datetime"] + relativedelta(seconds = offset)
-        end_datetime = start_datetime + relativedelta(seconds = segment_duration*60)
+        end_datetime = _segment_start_datetime + relativedelta(seconds = segment_duration*60)
         if end_datetime > self.__doc["end_datetime"]:
           end_datetime = self.__doc["end_datetime"]
 
@@ -347,5 +347,5 @@ def get_fixed_segment_start_datetime(segment_start_datetime,segment_duration):
   _total_minutes = (_start_hour*60 + _start_minute)//segment_duration*segment_duration
   _new_hour = _total_minutes//60
   _new_minute = _total_minutes%60
-  _new_datetime = segment_start_datetime.replace(hour=_new_hour,minute=_new_minute)
+  _new_datetime = segment_start_datetime.replace(hour=_new_hour,minute=_new_minute,second=0)
   return _new_datetime
