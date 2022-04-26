@@ -127,11 +127,11 @@ class Eegdb:
           # print("import annotation data to database")
           self.import_docs(annotation_docs,annotation_collection)
 
-  def import_csr_eeg_file_v2(self,subjectid,sessionid,filepath,segment_duration=60,annotation_filepath=None,check_existing=True,max_sample_rate=None):
+  def import_csr_eeg_file_v2(self,subjectid,sessionid,filepath,segment_duration=None,annotation_filepath=None,check_existing=True,max_sample_rate=None):
     import_edf_flag = True
     import_annotation_flag = True
     vendor = "csr_uh"
-
+    sample_rate_set = {}
     print("import",subjectid,sessionid,filepath,annotation_filepath)
 
     if filepath:
@@ -156,6 +156,8 @@ class Eegdb:
         # import file
         # print("import edf file info to database")
         file_doc = data_file.get_doc()
+        sample_rate_set.update(file_doc["sample_rates"])
+        print(sample_rate_set)
         if max_sample_rate:
           first_channel = data_file.get_channel(0)
           first_channel_sr = first_channel["sample_rate"]

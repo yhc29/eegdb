@@ -105,11 +105,13 @@ class DataFile:
 
     data = f.readSignal
 
+    _doc["sample_rates"] = []
     for i in range(N_channel):
       channel_label = channel_labels[i]
       # sample_rate = f.getSampleFrequency(i) Bug: not correct for csr edf
       signals = data(i)
       sample_rate = len(signals)/duration
+      _doc["sample_rates"].append(sample_rate)
       # print("signal_label",signal_label,"sample_rate",sample_rate,"signals",signals[:5])
       _channel_doc = {
         "channel_index":i,
@@ -195,7 +197,7 @@ class DataFile:
         _segments.append(segment)
     return _segments
 
-  def segmentation_by_time(self,segment_duration=60):
+  def segmentation_by_time(self,segment_duration=None):
     _segments = []
     _file_start_datetime = self.__doc["start_datetime"]
     _file_end_datetime = self.__doc["end_datetime"]
@@ -203,6 +205,15 @@ class DataFile:
       channel_index = channel_doc["channel_index"]
       channel_label = channel_doc["channel_label"]
       sample_rate = channel_doc["sample_rate"]
+      if not segment_duration:
+        if sample_rate<300:
+          segment_duration=60
+        elif sample_rate<700:
+          segment_duration=30
+        elif sample_rate<1000:
+          segment_duration=20
+        elif sample_rate<1500:
+          segment_duration=10
       file_signals = channel_doc["signals"]
       n_data_point = len(file_signals)
       segment_count = 0
