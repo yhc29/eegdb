@@ -22,6 +22,8 @@ class QueryClient:
   def get_db_name(self):
     return self.__db_name
 
+  def segments_collection(self):
+    return self.__database["segments"]
 
   
   '''
@@ -30,8 +32,8 @@ class QueryClient:
   def segment_query(self,datetime1,datetime2=None,subjectid_list=None,channel_list=None):
     datetime2 = datetime1 if not datetime2 else datetime2
 
-    segment_datetime1 = get_fixed_segment_start_datetime(datetime1,60)
-    segment_datetime2 = get_fixed_segment_start_datetime(datetime2,60)
+    segment_datetime1 = get_fixed_segment_start_datetime(datetime1,30)
+    segment_datetime2 = get_fixed_segment_start_datetime(datetime2,30)
     if subjectid_list:
       _stmt = {"subjectid":{"$in":subjectid_list}}
     else:
@@ -39,7 +41,7 @@ class QueryClient:
     if channel_list:
       _stmt["channel_label"] = {"$in":channel_list}
     _stmt["segment_datetime"] = {"$gte":segment_datetime1,"$lte":segment_datetime2}
-    segment_docs = self.__database.find(_stmt)
+    segment_docs = self.segments_collection.find(_stmt)
 
     result = {}
     for doc in segment_docs:
