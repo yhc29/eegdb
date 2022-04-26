@@ -151,19 +151,18 @@ class Eegdb:
           data_file = DataFile(subjectid,filepath,file_type,sessionid,vendor=vendor)
         except:
           print("Read EDF error on", filepath)
-          return -1
+          return -1,None
 
         # import file
         # print("import edf file info to database")
         file_doc = data_file.get_doc()
         sample_rate_set.update(set(file_doc["sample_rates"]))
-        print(sample_rate_set)
         if max_sample_rate:
           first_channel = data_file.get_channel(0)
           first_channel_sr = first_channel["sample_rate"]
           if first_channel_sr>max_sample_rate:
             print("sample_rate",first_channel_sr,"> max_sample_rate",max_sample_rate," import terminated.")
-            return -3
+            return -3,None
         file_collection = "files"
         self.import_docs([file_doc],file_collection)
 
@@ -180,7 +179,7 @@ class Eegdb:
         data_file = DataFile()
         data_file.load_mongo_doc(existing_file_doc)
       else:
-        return -2
+        return -2,None
 
     # import annotation
     if annotation_filepath:
@@ -197,6 +196,7 @@ class Eegdb:
           annotation_collection = "annotations"
           # print("import annotation data to database")
           self.import_docs(annotation_docs,annotation_collection)
+    return 1,sample_rate_set
 
   def import_samsung_wearable_data(self,vendor,file_type,subjectid,subject_filepath_list):
     subject_data_list = []

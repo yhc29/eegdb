@@ -5,6 +5,7 @@ import numpy as np
 import os
 import math
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 import pymongo
 import csv
 
@@ -58,8 +59,24 @@ class QueryClient:
         result[_subjectid][_channel_label] = [doc]
     
     for subjectid,channels_data in result.items():
-      for channel_label,signal_array in channels_data.items():
-        result[subjectid][channel_label] = sorted(signal_array,key=lambda x:x["segment_datetime"])
+      for channel_label,signal_doc_array in channels_data.items():
+        new_time_points = []
+        new_signals = []
+        for signal_doc in sorted(signal_doc_array,key=lambda x:x["segment_datetime"]):
+          signals = signal_doc["signals"]
+          sample_rate = int(signal_doc["sample_rate"]+0.5)
+          granularity = 1/sample_rate
+          signal_start_datetime = signal_doc["start_datetime"]
+          signal_end_datetime = signal_doc["end_datetime"]
+          for m in range(signal_start_datetime.minute,signal_end_datetime.minute+1):
+            for s in range(60):
+              try:
+                new_signals += signals[str(m)][str(s)]
+                new_time_points += [signal_start_datetime+relativedelta(minutes=m,seconds=s+x*granularity) for x in range(len(signals[str(m)][str(s)])) ]
+              except:
+                pass
+
+        result[subjectid][channel_label] = (new_time_points,new_signals)
 
 
 

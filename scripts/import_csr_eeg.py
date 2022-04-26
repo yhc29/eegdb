@@ -43,6 +43,7 @@ def test_data_import(eegdb,data_folder):
   print(total_file_count, "files found!")
 
   imported_file_count = 0
+  _sample_rate_set = set([])
   for fileid,file_info in data_file_dict.items():
     imported_file_count += 1
     subjectid,sessionid,filepath,annotation_filepath = file_info
@@ -51,7 +52,10 @@ def test_data_import(eegdb,data_folder):
     if not annotation_filepath:
       print("No edf found for",file_info)
     # eegdb.import_csr_eeg_file(subjectid,sessionid,filepath,max_segment_length=None,annotation_filepath=annotation_filepath,max_sample_rate=500)
-    eegdb.import_csr_eeg_file_v2(subjectid,sessionid,filepath,segment_duration=None,annotation_filepath=annotation_filepath,max_sample_rate=299)
+    _code,_tmp_sr_set = eegdb.import_csr_eeg_file_v2(subjectid,sessionid,filepath,segment_duration=None,annotation_filepath=annotation_filepath,max_sample_rate=299)
+    if _tmp_sr_set:
+      _sample_rate_set.update(_tmp_sr_set)
+      print(_sample_rate_set)
     print(imported_file_count,"/",total_file_count, "imported.")
 
 if __name__ == '__main__':

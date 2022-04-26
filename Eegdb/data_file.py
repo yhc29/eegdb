@@ -110,7 +110,7 @@ class DataFile:
       channel_label = channel_labels[i]
       # sample_rate = f.getSampleFrequency(i) Bug: not correct for csr edf
       signals = data(i)
-      sample_rate = len(signals)/duration
+      sample_rate = int(len(signals)/duration+0.5)
       _doc["sample_rates"].append(sample_rate)
       # print("signal_label",signal_label,"sample_rate",sample_rate,"signals",signals[:5])
       _channel_doc = {
