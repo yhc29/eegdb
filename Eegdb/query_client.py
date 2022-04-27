@@ -11,6 +11,8 @@ import csv
 
 from Eegdb.data_file import DataFile
 
+from Utils.timer import Timer
+
 class QueryClient:
   def __init__(self,mongo_url,db_name,output_folder):
     self.__mongo_client = pymongo.MongoClient(mongo_url)
@@ -30,19 +32,39 @@ class QueryClient:
   '''
     Quey functions
   '''
-  def segment_query(self,datetime1,datetime2=None,subjectid_list=None,channel_list=None):
+  def segment_query(self,segment_duration,datetime1,datetime2=None,subjectid_list=None,channel_list=None):
+    _my_timer = Timer()
     datetime2 = datetime1 if not datetime2 else datetime2
 
-    segment_datetime1 = get_fixed_segment_start_datetime(datetime1,30)
-    segment_datetime2 = get_fixed_segment_start_datetime(datetime2,30)
+    segment_datetime1 = get_fixed_segment_start_datetime(datetime1,segment_duration)
+    segment_datetime2 = get_fixed_segment_start_datetime(datetime2,segment_duration)
+    segment_datetime_list = [segment_datetime1]
+    for i in range(1,int((segment_datetime2-segment_datetime1).total_seconds()//segment_duration*60)):
+      segment_datetime_list.append(segment_datetime1+relativedelta(minutes=segment_duration))
+    
     if subjectid_list:
-      _stmt = {"subjectid":{"$in":subjectid_list}}
+      _match_stmt = {"subjectid":{"$in":subjectid_list}}
     else:
-      _stmt = {"subjectid":{"$exists":True}}
+      _match_stmt = {"subjectid":{"$exists":True}}
     if channel_list:
-      _stmt["channel_label"] = {"$in":channel_list}
-    _stmt["segment_datetime"] = {"$gte":segment_datetime1,"$lte":segment_datetime2}
-    segment_docs = self.get_segments_collection().find(_stmt)
+      _match_stmt["channel_label"] = {"$in":channel_list}
+    _match_stmt["segment_datetime"] = {"$in":segment_datetime_list}
+
+    _project_stmt = { "_id": 0, "subjectid": 1, "channel_label": 1, "start_datetime":1, "end_datetime":1, "sample_rate":1}
+    _segment_start_minute, _segment_end_minute = datetime1.minute,datetime2.minute
+    for i in range(60):
+      _cond_list = []
+      if i<_segment_start_minute:
+        _cond_list.append(segment_datetime_list[0])
+      if i>_segment_end_minute:
+        _cond_list.append(segment_datetime_list[-1])
+      _project_stmt["signals."+str(i)] = {"$cond": [{"$in": ['$segment_datetime', _cond_list.copy() ]}, 0, "$signals."+str(i) ]}
+    _ap_stmt = [
+      { "$match" : _match_stmt },
+      { "$project": _project_stmt},
+    ]
+    # segment_docs = self.get_segments_collection().find(_match_stmt)
+    segment_docs = self.get_segments_collection().aggregate(_ap_stmt,allowDiskUse=False)
 
     result = {}
     for doc in segment_docs:
@@ -57,30 +79,55 @@ class QueryClient:
         result[_subjectid][_channel_label].append(doc)
       except:
         result[_subjectid][_channel_label] = [doc]
-    
+    # print(_my_timer.click())
     for subjectid,channels_data in result.items():
       for channel_label,signal_doc_array in channels_data.items():
-        new_time_points = []
-        new_signals = []
-        for signal_doc in sorted(signal_doc_array,key=lambda x:x["segment_datetime"]):
+        new_time_points_list = [[datetime1,datetime1]]
+        new_signals_list = [[]]
+        for signal_doc in sorted(signal_doc_array,key=lambda x:x["start_datetime"],reverse=False):
           signals = signal_doc["signals"]
           sample_rate = int(signal_doc["sample_rate"]+0.5)
-          granularity = 1/sample_rate
+          # granularity = 1/sample_rate
           signal_start_datetime = signal_doc["start_datetime"]
           signal_end_datetime = signal_doc["end_datetime"]
-          for m in range(signal_start_datetime.minute,signal_end_datetime.minute+1):
-            for s in range(60):
+          if signal_end_datetime>datetime2:
+            signal_end_datetime = datetime2
+          if signal_start_datetime<new_time_points_list[-1][1]:
+            if signal_end_datetime<=new_time_points_list[-1][1]:
+              # contained in the previous recording, skip
+              continue
+            else:
+              # signal overlap
+              signal_start_datetime = new_time_points_list[-1][1]
+              new_time_points_list[-1][1] = signal_end_datetime
+          elif signal_start_datetime == new_time_points_list[-1][1]:
+            # concatenate
+            new_time_points_list[-1][1] = signal_end_datetime
+          else:
+            # not continous, append a new segment
+            if new_signals_list[-1] == []:
+              new_time_points_list[-1] = [signal_start_datetime,signal_end_datetime]
+            else:
+              new_time_points_list.append([signal_start_datetime,signal_end_datetime])
+              new_signals_list.append([])
+          m1 = signal_start_datetime.minute
+          s1 = signal_start_datetime.second
+          m2 = 60 if signal_end_datetime.minute==0 else signal_end_datetime.minute
+          s2 = signal_end_datetime.second
+          for m in range(m1,m2+1):
+            if m == m1:
+              tmp_seconds = range(s1,60)
+            elif m == m2:
+              tmp_seconds = range(0,s2)
+            else:
+              tmp_seconds = range(60)
+            for s in tmp_seconds:
               try:
-                new_signals += signals[str(m)][str(s)]
-                new_time_points += [signal_start_datetime+relativedelta(minutes=m,seconds=s+x*granularity) for x in range(len(signals[str(m)][str(s)])) ]
+                new_signals_list[-1] += signals[str(m)][str(s)]["values"]
               except:
                 pass
-
-        result[subjectid][channel_label] = (new_time_points,new_signals)
-
-
-
-
+        result[subjectid][channel_label] = (new_time_points_list,new_signals_list)
+    # print(_my_timer.click())
     return result
 
 
