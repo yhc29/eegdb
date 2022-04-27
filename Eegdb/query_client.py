@@ -82,11 +82,15 @@ class QueryClient:
     # print(_my_timer.click())
     for subjectid,channels_data in result.items():
       for channel_label,signal_doc_array in channels_data.items():
-        new_time_points_list = [[datetime1,datetime1]]
+        new_time_points_list = [[datetime1,datetime1,None]]
         new_signals_list = [[]]
+        sample_rate_set = set([])
         for signal_doc in sorted(signal_doc_array,key=lambda x:x["start_datetime"],reverse=False):
           signals = signal_doc["signals"]
           sample_rate = int(signal_doc["sample_rate"]+0.5)
+          sample_rate_set.add(sample_rate)
+          if len(sample_rate_set)>1:
+            print("inconsistant sample rate found:",sample_rate_set)
           # granularity = 1/sample_rate
           signal_start_datetime = signal_doc["start_datetime"]
           signal_end_datetime = signal_doc["end_datetime"]
@@ -100,15 +104,17 @@ class QueryClient:
               # signal overlap
               signal_start_datetime = new_time_points_list[-1][1]
               new_time_points_list[-1][1] = signal_end_datetime
+              new_time_points_list[-1][2] = sample_rate
           elif signal_start_datetime == new_time_points_list[-1][1]:
             # concatenate
             new_time_points_list[-1][1] = signal_end_datetime
+            new_time_points_list[-1][2] = sample_rate
           else:
             # not continous, append a new segment
             if new_signals_list[-1] == []:
-              new_time_points_list[-1] = [signal_start_datetime,signal_end_datetime]
+              new_time_points_list[-1] = [signal_start_datetime,signal_end_datetime,sample_rate]
             else:
-              new_time_points_list.append([signal_start_datetime,signal_end_datetime])
+              new_time_points_list.append([signal_start_datetime,signal_end_datetime,sample_rate])
               new_signals_list.append([])
           m1 = signal_start_datetime.minute
           s1 = signal_start_datetime.second
