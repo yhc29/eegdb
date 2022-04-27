@@ -27,6 +27,8 @@ class QueryClient:
 
   def get_segments_collection(self):
     return self.__database["segments"]
+  def get_annotations_collection(self):
+    return self.__database["annotations"]
 
   
   '''
@@ -39,16 +41,23 @@ class QueryClient:
     segment_datetime1 = get_fixed_segment_start_datetime(datetime1,segment_duration)
     segment_datetime2 = get_fixed_segment_start_datetime(datetime2,segment_duration)
     segment_datetime_list = [segment_datetime1]
-    for i in range(1,int((segment_datetime2-segment_datetime1).total_seconds()//segment_duration*60)):
-      segment_datetime_list.append(segment_datetime1+relativedelta(minutes=segment_duration))
+    for i in range(1,int( (segment_datetime2-segment_datetime1).total_seconds()//(segment_duration*60)+1 )):
+      segment_datetime_list.append(segment_datetime1+relativedelta(minutes=segment_duration*i))
     
     if subjectid_list:
-      _match_stmt = {"subjectid":{"$in":subjectid_list}}
+      if len(subjectid_list)==1:
+        _match_stmt = {"subjectid":subjectid_list[0]}
+      else:
+        _match_stmt = {"subjectid":{"$in":subjectid_list}}
     else:
       _match_stmt = {"subjectid":{"$exists":True}}
     if channel_list:
-      _match_stmt["channel_label"] = {"$in":channel_list}
+      if len(channel_list)==1:
+        _match_stmt["channel_label"] = channel_list[0]
+      else:
+        _match_stmt["channel_label"] = {"$in":channel_list}
     _match_stmt["segment_datetime"] = {"$in":segment_datetime_list}
+    # _match_stmt["segment_datetime"] = {"$gte":segment_datetime1,"$lte":segment_datetime2}
 
     _project_stmt = { "_id": 0, "subjectid": 1, "channel_label": 1, "start_datetime":1, "end_datetime":1, "sample_rate":1}
     _segment_start_minute, _segment_end_minute = datetime1.minute,datetime2.minute
@@ -79,7 +88,7 @@ class QueryClient:
         result[_subjectid][_channel_label].append(doc)
       except:
         result[_subjectid][_channel_label] = [doc]
-    # print(_my_timer.click())
+    print("mongo query time",_my_timer.click())
     for subjectid,channels_data in result.items():
       for channel_label,signal_doc_array in channels_data.items():
         new_time_points_list = [[datetime1,datetime1,None]]
@@ -133,7 +142,23 @@ class QueryClient:
               except:
                 pass
         result[subjectid][channel_label] = (new_time_points_list,new_signals_list)
-    # print(_my_timer.click())
+    print("post process time",_my_timer.click())
+    return result
+
+  def annotation_query(self,annotation_list):
+    result = {}
+    _match_stmt = {"annotation":{"$in":annotation_list}}
+    annotation_docs = self.get_annotations_collection().find(_match_stmt)
+    for doc in annotation_docs:
+      subjectid = doc["subjectid"]
+      time = doc["time"]
+      try:
+        result[subjectid].append(time)
+      except:
+        result[subjectid] = [time]
+    
+    for subjectid,time_list in result.items():
+      result[subjectid] = sorted(time_list)
     return result
 
 
