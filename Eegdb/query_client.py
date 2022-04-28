@@ -79,6 +79,7 @@ class QueryClient:
     for doc in segment_docs:
       _subjectid = doc["subjectid"]
       _channel_label = doc["channel_label"]
+      
       try:
         result[_subjectid]
       except:
@@ -168,5 +169,5 @@ def get_fixed_segment_start_datetime(segment_start_datetime,segment_duration):
   _total_minutes = (_start_hour*60 + _start_minute)//segment_duration*segment_duration
   _new_hour = _total_minutes//60
   _new_minute = _total_minutes%60
-  _new_datetime = segment_start_datetime.replace(hour=_new_hour,minute=_new_minute,second=0)
+  _new_datetime = segment_start_datetime.replace(hour=_new_hour,minute=_new_minute,second=0,microsecond=0)
   return _new_datetime
