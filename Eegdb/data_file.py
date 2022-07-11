@@ -33,6 +33,10 @@ class DataFile:
       if load_data:
         _file_info_doc,self.__channel_list = self.load_edf(filepath)
         self.__doc.update(_file_info_doc)
+    elif file_type == "edf+":
+      if load_data:
+        _file_info_doc,self.__channel_list = self.load_edf_plus(filepath)
+        self.__doc.update(_file_info_doc)
     elif vendor == "samsung_wearable" and file_type in ["bppg","hribi","gyro"]:
       if load_data:
         _file_info_doc,self.__channel_list = self.load_samsung_wearable_data(filepath,file_type)
@@ -123,6 +127,53 @@ class DataFile:
     
     header = f.getHeader()
     # print("header",header)
+    return _doc,_channel_list
+
+  def load_edf_plus(self,filepath):
+    _doc = {}
+    _channel_list = []
+
+    f = pyedflib.EdfReader(filepath)  # https://pyedflib.readthedocs.io/en/latest/#description
+
+    N_channel = f.signals_in_file
+    _doc["n_channel"] = N_channel
+    print("N_channel",N_channel)
+
+    channel_labels = f.getSignalLabels()
+    _doc["channel_labels"] = channel_labels
+    print("channel_labels",channel_labels)
+
+    start_datetime = f.getStartdatetime()
+    _doc["start_datetime"] = start_datetime
+    print("start_datetime",start_datetime)
+
+    duration = f.getFileDuration()
+    _doc["duration"] = duration
+    print("duration",duration)
+    end_datetime = start_datetime+relativedelta(seconds = duration)
+    _doc["end_datetime"] = end_datetime
+    print("end_datetime",end_datetime)
+
+    data = f.readSignal
+
+    _doc["sample_rates"] = []
+    for i in range(N_channel):
+      channel_label = channel_labels[i]
+      # sample_rate = f.getSampleFrequency(i) Bug: not correct for csr edf
+      signals = data(i)
+      sample_rate = int(len(signals)/duration+0.5)
+      _doc["sample_rates"].append(sample_rate)
+      # print("signal_label",signal_label,"sample_rate",sample_rate,"signals",signals[:5])
+      _channel_doc = {
+        "channel_index":i,
+        "channel_label":channel_label,
+        "sample_rate":sample_rate,
+        "signals":signals
+      }
+      _channel_list.append(_channel_doc)
+    
+    header = f.getHeader()
+    print("header",header)
     return _doc,_channel_list
 
   def load_samsung_wearable_data(self, filepath,file_type):

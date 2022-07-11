@@ -198,6 +198,49 @@ class Eegdb:
           self.import_docs(annotation_docs,annotation_collection)
     return 1,sample_rate_set
 
+  def import_csr_edf_plus(self,csr_site_name,subjectid,sessionid,filepath,segment_duration=None,check_existing=True,max_sample_rate=None,import_edf_flag = True,import_annotation_flag = True):
+    sample_rate_set = set([])
+    print("import",csr_site_name,subjectid,sessionid,filepath)
+
+    if check_existing:
+      fileid = filepath.split("/")[-1]
+      existing_file_doc = self.__database["files"].find_one({"subjectid":subjectid,"fileid":fileid})
+      if existing_file_doc:
+        data_file = DataFile()
+        data_file.load_mongo_doc(existing_file_doc)
+        print(filepath,"exists, skip import edf.")
+        import_edf_flag = False
+
+    if import_edf_flag:
+      file_type = "edf+"
+      try:
+        data_file = DataFile(subjectid,filepath,file_type,sessionid,vendor=csr_site_name)
+      except:
+        print("Read EDF error on", filepath)
+        return -1,None
+
+      # import file
+      # print("import edf file info to database")
+      # file_doc = data_file.get_doc()
+      # sample_rate_set.update(set(file_doc["sample_rates"]))
+      # if max_sample_rate:
+      #   first_channel = data_file.get_channel(0)
+      #   first_channel_sr = first_channel["sample_rate"]
+      #   if first_channel_sr>max_sample_rate:
+      #     print("sample_rate",first_channel_sr,"> max_sample_rate",max_sample_rate," import terminated.")
+      #     return -3,None
+      # file_collection = "files"
+      # self.import_docs([file_doc],file_collection)
+
+      # # import segments
+      # # print("import segment data to database, segmentation with max_segment_length =",max_segment_length)
+      # segment_docs = [x.generate_mongo_doc() for x in data_file.segmentation_by_time(segment_duration=segment_duration)]
+      # segments_collection = "segments"
+      # self.import_docs(segment_docs,segments_collection)
+
+    return 1,sample_rate_set
+
+  
   def import_samsung_wearable_data(self,vendor,file_type,subjectid,subject_filepath_list):
     subject_data_list = []
     count = 0
