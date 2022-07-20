@@ -15,23 +15,89 @@ from Eegdb.eegdb import Eegdb
 
 import config.db_config_ibm as config_file
 
+def annotation_file_import(eegdb,annotation_file_path):
+  print("load",annotation_file_path)
+  date_format = "%Y-%m-%d %H:%M:%S"
+  annotation_record_doc_list = []
+  annotation_tii_dict ={}
+  annotation_id_tii_dict ={}
+  annotation_id_partial_tii_dict ={}
+  with open(annotation_file_path,encoding='utf-8-sig') as f:
+    csv_reader = csv.DictReader(f)
+    row_count = 0
+    for row in csv_reader:
+      row_count += 1 
+      subjectid = row["patient_id"]
+      fileid = row["edf_file_id"]+".edf"
+      file_time = float(row["relative_time"])
+      time_str = row["datetime"]
+      time_str = time_str.split(" ")[0] + " " + time_str.split(" ")[1]
+      time = datetime.strptime(time_str,date_format)
+      # if row_count<10:
+      #   print(time_str,time)
+      annotation = row["annotation"]
+      try:
+        annotation_tii_dict[annotation].add(subjectid)
+      except:
+        annotation_tii_dict[annotation] = {subjectid}
+      annotation_record_doc = {"subjectid":subjectid, "fileid":fileid,"file_time":file_time, "time":time, "annotation":annotation}
+      annotationid = int(row["annotation_id"])
+      if annotationid!= -1:
+        annotation_record_doc["annotationid"] = annotationid
+        try:
+          annotation_id_tii_dict[annotationid].add(subjectid)
+        except:
+          annotation_id_tii_dict[annotationid] = {subjectid}
+      annotationid_partial = int(row["annotation_id_partial"])
+      if annotationid_partial!= -1:
+        annotation_record_doc["annotationid_partial"] = annotationid_partial
+        try:
+          annotation_id_partial_tii_dict[annotationid_partial].add(subjectid)
+        except:
+          annotation_id_partial_tii_dict[annotationid_partial] = {subjectid}
+      annotation_record_doc_list.append(annotation_record_doc)
+    print(row_count,"annotation records loaded.")
+
+  collection_name = "annotation_records"
+  eegdb.drop_collections([collection_name])
+  eegdb.import_docs(annotation_record_doc_list,collection_name,batch_size=10000)
+
+  collection_name = "annotation_tii"
+  annotation_tii_doc_list = []
+  for annotation,subjectid_set in annotation_tii_dict.items():
+    annotation_tii_doc = {"annotation":annotation, "subjectid_list":list(subjectid_set)}
+    annotation_tii_doc_list.append(annotation_tii_doc)
+  for annotationid,subjectid_set in annotation_id_tii_dict.items():
+    annotation_tii_doc = {"annotationid":annotationid, "subjectid_list":list(subjectid_set)}
+    annotation_tii_doc_list.append(annotation_tii_doc)
+  for annotationid_partial,subjectid_set in annotation_id_partial_tii_dict.items():
+    annotation_tii_doc = {"annotationid_partial":annotationid_partial, "subjectid_list":list(subjectid_set)}
+    annotation_tii_doc_list.append(annotation_tii_doc)
+  eegdb.drop_collections([collection_name])
+  eegdb.import_docs(annotation_tii_doc_list,collection_name,batch_size=10000)
+
+
 def edf_plus_import(eegdb,data_folder):
   data_file_dict = {}
-  for sessionid in os.listdir(data_folder):
-    session_folder = os.path.join(data_folder, sessionid)
-    if os.path.isdir(session_folder):
-      subjectid = sessionid[:-2]
+  # for sessionid in os.listdir(data_folder):
+  #   session_folder = os.path.join(data_folder, sessionid)
+  #   if os.path.isdir(session_folder):
+  #     subjectid = sessionid[:-2]
   
+  csr_site_name = "UH"
   subjectid = "WKQB28950888871511"
   sessionid = "WKQB2895088887151101"
   filepath = "/Users/yhuang22/Documents/Data/CSR_EEG/csr/UH/EEG/WKQB2895088887151101/DA1167CT_1-1+.edf"
-  _code,_tmp_sr_set = eegdb.import_csr_edf_plus(subjectid,sessionid,filepath,segment_duration=None,max_sample_rate=299)
+  _code,_tmp_sr_set = eegdb.import_csr_edf_plus(csr_site_name,subjectid,sessionid,filepath,segment_duration=None,check_existing=True,max_sample_rate=299)
 
 if __name__ == '__main__':
   my_timer = Timer()
 
   eegdb = Eegdb(config_file.mongo_url,config_file.eegdb_name,config_file.output_folder,config_file.data_folder)
-  edf_plus_import(eegdb,config_file.data_folder)
+  # edf_plus_import(eegdb,config_file.data_folder)
+
+  annotation_file_path = config_file.data_folder+"eeg_annotation_records_edf+cd.csv"
+  annotation_file_import(eegdb,annotation_file_path)
 
 
 

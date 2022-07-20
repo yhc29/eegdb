@@ -215,7 +215,8 @@ class Eegdb:
       file_type = "edf+"
       try:
         data_file = DataFile(subjectid,filepath,file_type,sessionid,vendor=csr_site_name)
-      except:
+      except Exception as e:
+        print(e)
         print("Read EDF error on", filepath)
         return -1,None
 

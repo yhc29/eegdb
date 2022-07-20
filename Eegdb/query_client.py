@@ -25,10 +25,14 @@ class QueryClient:
   def get_db_name(self):
     return self.__db_name
 
+  def get_files_collection(self):
+    return self.__database["files"]
   def get_segments_collection(self):
     return self.__database["segments"]
   def get_annotations_collection(self):
-    return self.__database["annotations"]
+    return self.__database["annotation_records"]
+  def get_annotation_tii_collection(self):
+    return self.__database["annotation_tii"]
 
   
   '''
@@ -160,6 +164,56 @@ class QueryClient:
     
     for subjectid,time_list in result.items():
       result[subjectid] = sorted(time_list)
+    return result
+
+  def get_all_subjectid_with_annotation(self):
+    try:
+      subjectid_list = self.get_annotations_collection().distinct("subjectid")
+    except Exception as e:
+      print(str(e))
+      subjectid_list = []
+    return subjectid_list
+
+
+  def get_subjectid_by_annotation(self, annotation_list = [], annotationid_list = [] ):
+    # if input annotation is empty, then return all patients with annotation
+    if annotation_list == [] and annotationid_list == []:
+      return self.get_all_subjectid_with_annotation()
+    
+    _or_list = []
+    if annotation_list:
+      _or_list.append({"annotation": {"$in":annotation_list}})
+    if annotationid_list:
+      _or_list.append({"annotationid_partial": {"$in":annotationid_list}})
+    _match_stmt = {"$or":_or_list}
+    annotation_docs = self.get_annotation_tii_collection().find(_match_stmt)
+    result = set([])
+    for doc in annotation_docs:
+      subjectid_list = doc["subjectid_list"]
+      result = result.union(set(subjectid_list))
+    return list(result)
+
+  def get_time_by_annotation(self, annotation_list = [], annotationid_list = [] ):
+    # if input annotation is empty, then return all patients with annotation
+    if annotation_list == [] and annotationid_list == []:
+      print("input:annotation_list and annotationid_list are both empty")
+      return []
+    
+    _or_list = []
+    if annotation_list:
+      _or_list.append({"annotation": {"$in":annotation_list}})
+    if annotationid_list:
+      _or_list.append({"annotationid_partial": {"$in":annotationid_list}})
+    _match_stmt = {"$or":_or_list}
+    annotation_docs = self.get_annotations_collection().find(_match_stmt)
+    result = {}
+    for doc in annotation_docs:
+      subjectid = doc["subjectid"]
+      time = doc["time"]
+      try:
+        result[subjectid].append(time)
+      except:
+        result[subjectid] = [time]
     return result
 
 
