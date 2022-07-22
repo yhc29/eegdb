@@ -90,14 +90,63 @@ def edf_plus_import(eegdb,data_folder):
   filepath = "/Users/yhuang22/Documents/Data/CSR_EEG/csr/UH/EEG/WKQB2895088887151101/DA1167CT_1-1+.edf"
   _code,_tmp_sr_set = eegdb.import_csr_edf_plus(csr_site_name,subjectid,sessionid,filepath,segment_duration=None,check_existing=True,max_sample_rate=299)
 
+
+def annotation_ralation_pt_timeline_import(eegdb):
+  collection_name = "pannotation_relation_pt_timeline"
+  eegdb.drop_collections([collection_name])
+  subjectid_list = eegdb.get_collection("annotation_records").distinct("subjectid")
+  subjectid_count = 0
+  for subjectid in subjectid_list:
+    doc_list = []
+    subjectid_count+=1
+    print(subjectid_count,subjectid)
+    docs = eegdb.get_collection("annotation_records").find({"subjectid":subjectid,"annotationid_partial":{"$exists":True}})
+    pt_annotation_dict = {}
+    for doc in docs:
+      time = doc["time"]
+      annotationid = doc["annotationid_partial"]
+      try:
+        pt_annotation_dict[annotationid].add(time)
+      except:
+        pt_annotation_dict[annotationid] = set([time])
+    pt_timeline = []
+    for annotationid,time_set in pt_annotation_dict.items():
+      for time in time_set:
+        pt_timeline.append((annotationid,time))
+    pt_timeline = sorted(pt_timeline,key=lambda x:x[1],reverse=True)
+    print(len(pt_timeline), "annotation records found")
+    pt_annotation_relation_dict = {}
+    for i in range(len(pt_timeline)-1):
+      annotation1 = pt_timeline[i]
+      for j in range(i+1, len(pt_timeline)):
+        annotation2 = pt_timeline[j]
+        time_diff = (annotation2[1]-annotation1[1]).total_seconds()
+        try:
+          pt_annotation_relation_dict[(annotation1,annotation2)].append((time_diff,annotation1[1]))
+        except:
+          pt_annotation_relation_dict[(annotation1,annotation2)] = [(time_diff,annotation1[1])]
+    for relation, time_diff_list in pt_annotation_relation_dict.items():
+      annotationid1 = relation[0]
+      annotationid2 = relation[1]
+      time_diff_list = sorted(time_diff_list,key=lambda x:x[0])
+      time_diff = [ x[0] for x in time_diff_list]
+      time = [ x[1] for x in time_diff_list]
+      import_doc = {"subjectid":subjectid, "annotationid1":annotationid1,"annotationid2":annotationid1,"time_diff":time_diff,"time":time}
+      doc_list.append(import_doc)
+    print(len(doc_list), "docs generated")
+    eegdb.import_docs(doc_list,collection_name,batch_size=10000)
+
+
 if __name__ == '__main__':
   my_timer = Timer()
 
   eegdb = Eegdb(config_file.mongo_url,config_file.eegdb_name,config_file.output_folder,config_file.data_folder)
   # edf_plus_import(eegdb,config_file.data_folder)
 
-  annotation_file_path = config_file.data_folder+"eeg_annotation_records_edf+cd.csv"
-  annotation_file_import(eegdb,annotation_file_path)
+  # annotation_file_path = config_file.data_folder+"eeg_annotation_records_edf+cd.csv"
+  # annotation_file_import(eegdb,annotation_file_path)
+
+  annotation_ralation_pt_timeline_import(eegdb)
 
 
 
