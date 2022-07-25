@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from multiprocessing.pool import ThreadPool
 import csv
+import math
 
 from Utils.timer import Timer
 
@@ -92,7 +93,8 @@ def edf_plus_import(eegdb,data_folder):
 
 
 def annotation_ralation_pt_timeline_import(eegdb):
-  collection_name = "pannotation_relation_pt_timeline"
+  max_n_relation_in_doc = 100000
+  collection_name = "annotation_relation_pt_timeline"
   eegdb.drop_collections([collection_name])
   subjectid_list = eegdb.get_collection("annotation_records").distinct("subjectid")
   subjectid_count = 0
@@ -113,26 +115,35 @@ def annotation_ralation_pt_timeline_import(eegdb):
     for annotationid,time_set in pt_annotation_dict.items():
       for time in time_set:
         pt_timeline.append((annotationid,time))
-    pt_timeline = sorted(pt_timeline,key=lambda x:x[1],reverse=True)
+    pt_timeline = sorted(pt_timeline,key=lambda x:x[1])
     print(len(pt_timeline), "annotation records found")
     pt_annotation_relation_dict = {}
+    
     for i in range(len(pt_timeline)-1):
       annotation1 = pt_timeline[i]
       for j in range(i+1, len(pt_timeline)):
         annotation2 = pt_timeline[j]
         time_diff = (annotation2[1]-annotation1[1]).total_seconds()
         try:
-          pt_annotation_relation_dict[(annotation1,annotation2)].append((time_diff,annotation1[1]))
+          pt_annotation_relation_dict[(annotation1[0],annotation2[0])].append((time_diff,annotation1[1]))
         except:
-          pt_annotation_relation_dict[(annotation1,annotation2)] = [(time_diff,annotation1[1])]
+          pt_annotation_relation_dict[(annotation1[0],annotation2[0])] = [(time_diff,annotation1[1])]
     for relation, time_diff_list in pt_annotation_relation_dict.items():
       annotationid1 = relation[0]
       annotationid2 = relation[1]
       time_diff_list = sorted(time_diff_list,key=lambda x:x[0])
-      time_diff = [ x[0] for x in time_diff_list]
-      time = [ x[1] for x in time_diff_list]
-      import_doc = {"subjectid":subjectid, "annotationid1":annotationid1,"annotationid2":annotationid1,"time_diff":time_diff,"time":time}
-      doc_list.append(import_doc)
+      if len(time_diff_list)<=max_n_relation_in_doc:
+        time_diff = [ x[0] for x in time_diff_list]
+        time = [ x[1] for x in time_diff_list]
+        import_doc = {"subjectid":subjectid, "annotationid1":annotationid1,"annotationid2":annotationid2,"time_diff":time_diff,"time":time}
+        doc_list.append(import_doc)
+      else:
+        split_count = math.ceil(len(time_diff_list)/max_n_relation_in_doc)
+        for s in range(split_count):
+          time_diff = [ x[0] for x in time_diff_list[s*max_n_relation_in_doc:(s+1)*max_n_relation_in_doc]]
+          time = [ x[1] for x in time_diff_list[s*max_n_relation_in_doc:(s+1)*max_n_relation_in_doc]]
+          import_doc = {"subjectid":subjectid, "annotationid1":annotationid1,"annotationid2":annotationid2,"time_diff":time_diff,"time":time}
+          doc_list.append(import_doc)
     print(len(doc_list), "docs generated")
     eegdb.import_docs(doc_list,collection_name,batch_size=10000)
 

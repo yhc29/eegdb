@@ -33,6 +33,8 @@ class QueryClient:
     return self.__database["annotation_records"]
   def get_annotation_tii_collection(self):
     return self.__database["annotation_tii"]
+  def get_annotation_relation_pt_timeline_collection(self):
+    return self.__database["pannotation_relation_pt_timeline"]
 
   
   '''
@@ -193,10 +195,86 @@ class QueryClient:
       result = result.union(set(subjectid_list))
     return list(result)
 
+  def get_subjectid_by_annotation_relation_v0(self, time_diff = [0,3600], annotationid1_list = [], annotationid2_list = [] ):
+    # if input annotation is empty, then return all patients with annotation
+    if annotationid1_list == [] or annotationid2_list == []:
+      print("input error: annotation_list or annotationid_list is empty")
+      return []
+
+    annotationid_pt_time_dict = {}
+
+    _ap_stmt = [
+      { "$match" : { "annotationid_partial": {"$in":annotationid1_list}}},
+      { "$project": {"_id": 0, "subjectid": 1, "time": 1} },
+      { "$group": { 
+        "_id": "$subjectid",
+        "time_list":{"$addToSet":"$time"},
+      } }
+    ]
+    docs = self.get_annotations_collection().aggregate(_ap_stmt,allowDiskUse=False)
+    for doc in docs:
+      annotationid_pt_time_dict[doc["_id"]] = [(1,x) for x in doc["time_list"]]
+    _ap_stmt = [
+      { "$match" : { "annotationid_partial": {"$in":annotationid2_list}}},
+      { "$project": {"_id": 0, "subjectid": 1, "time": 1} },
+      { "$group": { 
+        "_id": "$subjectid",
+        "time_list":{"$addToSet":"$time"},
+      } }
+    ]
+    docs = self.get_annotations_collection().aggregate(_ap_stmt,allowDiskUse=False)
+    for doc in docs:
+      try:
+        annotationid_pt_time_dict[doc["_id"]] += [(2,x) for x in doc["time_list"]]
+      except:
+        # annotationid_pt_time_dict.pop(doc["_id"])
+        pass
+    subjectid_list = []
+    for subjectid,time_list in annotationid_pt_time_dict.items():
+      cadidates = []
+      pointer = 0
+      matched_pattern = []
+      for annotationid,time in sorted(time_list,key=lambda x:x[1]):
+        if annotationid == 1:
+          cadidates.append(time)
+        elif annotationid == 2:
+          if pointer<len(cadidates):
+            for i in range(pointer,len(cadidates)):
+              if (time-cadidates[i]).total_seconds()<time_diff[0] or (time-cadidates[i]).total_seconds()<=0:
+                break
+              elif (time-cadidates[i]).total_seconds()>time_diff[1]:
+                pointer = i+1
+              else:
+                matched_pattern.append((cadidates[i],time))
+                break
+          if len(matched_pattern)>0:
+            break
+      if len(matched_pattern)>0:
+        subjectid_list.append(subjectid)
+
+
+    return subjectid_list
+
+  def get_subjectid_by_annotation_relation(self, time_diff = [0,3600], annotationid1_list = [], annotationid2_list = [] ):
+    # if input annotation is empty, then return all patients with annotation
+    if annotationid1_list == [] or annotationid2_list == []:
+      print("input error: annotation_list or annotationid_list is empty")
+      return []
+
+    _ap_stmt = [
+      { "$match" : { "annotationid1": {"$in":annotationid1_list},"annotationid2": {"$in":annotationid2_list}, "time_diff": { "$elemMatch": { "$ne":0,"$gte": time_diff[0], "$lte": time_diff[1] } } } },
+      { "$project": {"_id": 0, "subjectid": 1} },
+      { "$group": { "_id": "$subjectid"} }
+    ]
+    docs = self.get_annotation_relation_pt_timeline_collection().aggregate(_ap_stmt,allowDiskUse=False)
+    subjectid_list = [ doc["_id"] for doc in docs ]
+
+    return subjectid_list
+
   def get_time_by_annotation(self, annotation_list = [], annotationid_list = [] ):
     # if input annotation is empty, then return all patients with annotation
     if annotation_list == [] and annotationid_list == []:
-      print("input:annotation_list and annotationid_list are both empty")
+      print("input error: annotation_list and annotationid_list are both empty")
       return []
     
     _or_list = []
