@@ -34,7 +34,9 @@ class QueryClient:
   def get_annotation_tii_collection(self):
     return self.__database["annotation_tii"]
   def get_annotation_relation_pt_timeline_collection(self):
-    return self.__database["pannotation_relation_pt_timeline"]
+    return self.__database["annotation_relation_pt_timeline"]
+  def get_annotation_relation_pt_timeline_collection_v1(self):
+    return self.__database["annotation_relation_pt_timeline_v1"]
 
   
   '''
@@ -270,6 +272,160 @@ class QueryClient:
     subjectid_list = [ doc["_id"] for doc in docs ]
 
     return subjectid_list
+  
+  def get_time_by_annotation_relation_v1(self, time_diff = [0,3600], annotationid1_list = [], annotationid2_list = [], subjectid_list = None ):
+    # if input annotation is empty, then return all patients with annotation
+    if annotationid1_list == [] or annotationid2_list == []:
+      print("input error: annotation_list or annotationid_list is empty")
+      return []
+    if subjectid_list:
+      _match_stmt = { "subjectid":{"$in":subjectid_list}, "annotationid1": {"$in":annotationid1_list}, "annotationid2": {"$in":annotationid2_list}, "time_diff": { "$ne":0, "$gte": time_diff[0], "$lte": time_diff[1] } }
+    else:
+      _match_stmt = { "annotationid1": {"$in":annotationid1_list},"annotationid2": {"$in":annotationid2_list}, "time_diff": { "$ne":0, "$gte": time_diff[0], "$lte": time_diff[1] } }
+    _ap_stmt = [
+      { "$match" : _match_stmt },
+      # { "$project": {"_id": 0, "subjectid": 1, "time_diff":1,"time":1 } },
+      { "$group": {
+          "_id": {"subjectid": "$subjectid", "annotationid1": "$annotationid1", "annotationid2": "$annotationid2"}, 
+          "relations": {"$push": {"r":["$time_diff","$time"]}}
+        } },
+    ]
+    docs = self.get_annotation_relation_pt_timeline_collection_v1().aggregate(_ap_stmt,allowDiskUse=False)
+    results = {}
+    for doc in docs:
+      subjectid = doc["_id"]["subjectid"]
+      annotationid1 = doc["_id"]["annotationid1"]
+      annotationid2 = doc["_id"]["annotationid2"]
+      try:
+        results[subjectid].append( (annotationid1,annotationid2,[x["r"] for x in doc["relations"]]) )
+      except:
+        results[subjectid] = [ (annotationid1,annotationid2,[x["r"] for x in doc["relations"]]) ]
+      # for relation_data in doc["relations"]:
+      #   annotationid1 = relation_data["annotationid1"]
+      #   annotationid2 = relation_data["annotationid2"]
+      #   time_diff = relation_data["time_diff"]
+      #   time = relation_data["time"]
+      #   try:
+      #     results[subjectid].append((annotationid1,annotationid2,time,time_diff))
+      #   except:
+      #     results[subjectid] = [(annotationid1,annotationid2,time,time_diff)]
+
+    return results
+    
+  def get_time_by_annotation_relation(self, time_diff = [0,3600], annotationid1_list = [], annotationid2_list = [], subjectid_list = None ):
+    # if input annotation is empty, then return all patients with annotation
+    if annotationid1_list == [] or annotationid2_list == []:
+      print("input error: annotation_list or annotationid_list is empty")
+      return []
+    if subjectid_list:
+      _match_stmt = { "subjectid":{"$in":subjectid_list}, "annotationid1": {"$in":annotationid1_list}, "annotationid2": {"$in":annotationid2_list}, "time_diff": { "$elemMatch": { "$ne":0,"$gte": time_diff[0], "$lte": time_diff[1] } } }
+    else:
+      _match_stmt = { "annotationid1": {"$in":annotationid1_list},"annotationid2": {"$in":annotationid2_list}, "time_diff": { "$elemMatch": { "$ne":0,"$gte": time_diff[0], "$lte": time_diff[1] } } }
+    _ap_stmt = [
+      { "$match" : _match_stmt },
+      { "$project": {
+          "_id": 0, 
+          "subjectid": 1,
+          "annotationid1": 1,
+          "annotationid2": 1,
+          "time":{
+            "$slice": [
+              { "$zip": { "inputs": [ "$time1", "$time2" ] } },
+              {"$indexOfArray":[
+                "$time_diff",
+                {"$first": {
+                  "$filter": {
+                    "input": "$time_diff",
+                    "as": "item",
+                    "cond": { "$and": [ {"$ne": ["$$item",0]}, {"$gte": ["$$item",time_diff[0]]}] }
+                  }
+                }}
+              ]},
+              { "$size": {
+                "$filter": {
+                  "input": "$time_diff",
+                  "as": "item",
+                  "cond": {"$and": [ {"$gte": ["$$item",time_diff[0]]},{"$lte": ["$$item",time_diff[1]]}]}
+                }
+              }}
+            ]
+          }
+        } },
+    ]
+    docs = self.get_annotation_relation_pt_timeline_collection().aggregate(_ap_stmt,allowDiskUse=False)
+    results = {}
+    for doc in docs:
+      subjectid = doc["subjectid"]
+      annotationid1 = doc["annotationid1"]
+      annotationid2 = doc["annotationid2"]
+      time = doc["time"]
+      try:
+        results[subjectid].append((annotationid1,annotationid2,time))
+      except:
+        results[subjectid] = [(annotationid1,annotationid2,time)]
+
+    return results
+
+  def get_time_by_annotation_relation_v0(self, time_diff = [0,3600], annotationid1_list = [], annotationid2_list = [] ):
+    # if input annotation is empty, then return all patients with annotation
+    if annotationid1_list == [] or annotationid2_list == []:
+      print("input error: annotation_list or annotationid_list is empty")
+      return []
+
+    annotationid_pt_time_dict = {}
+
+    _ap_stmt = [
+      { "$match" : { "annotationid_partial": {"$in":annotationid1_list}}},
+      { "$project": {"_id": 0, "subjectid": 1, "annotationid_partial":1, "time": 1} },
+      { "$group": { 
+        "_id": {"subjectid": "$subjectid", "annotationid": "$annotationid_partial"},
+        "time_list":{"$addToSet":"$time"},
+      } }
+    ]
+    docs = self.get_annotations_collection().aggregate(_ap_stmt,allowDiskUse=False)
+    for doc in docs:
+      subjectid = doc["_id"]["subjectid"]
+      annotationid = doc["_id"]["annotationid"]
+      annotationid_pt_time_dict[subjectid] = [(1,x,annotationid) for x in doc["time_list"]]
+
+    _ap_stmt = [
+      { "$match" : { "annotationid_partial": {"$in":annotationid2_list}}},
+      { "$project": {"_id": 0, "subjectid": 1, "annotationid_partial":1, "time": 1} },
+      { "$group": { 
+        "_id": {"subjectid": "$subjectid", "annotationid": "$annotationid_partial"},
+        "time_list":{"$addToSet":"$time"},
+      } }
+    ]
+    docs = self.get_annotations_collection().aggregate(_ap_stmt,allowDiskUse=False)
+    for doc in docs:
+      try:
+        subjectid = doc["_id"]["subjectid"]
+        annotationid = doc["_id"]["annotationid"]
+        annotationid_pt_time_dict[subjectid] += [(2,x,annotationid) for x in doc["time_list"]]
+      except:
+        # annotationid_pt_time_dict.pop(doc["_id"])
+        pass
+    results = {}
+    for subjectid,time_list in annotationid_pt_time_dict.items():
+      cadidates = []
+      pointer = 0
+      matched_pattern = []
+      for relation_flag,time,annotationid in sorted(time_list,key=lambda x:x[1]):
+        if relation_flag == 1:
+          cadidates.append((annotationid,time))
+        elif relation_flag == 2:
+          if pointer<len(cadidates):
+            for i in range(pointer,len(cadidates)):
+              if (time-cadidates[i][1]).total_seconds()<time_diff[0] or (time-cadidates[i][1]).total_seconds()<=0:
+                break
+              elif (time-cadidates[i][1]).total_seconds()>time_diff[1]:
+                pointer = i+1
+              else:
+                matched_pattern.append((cadidates[i][0],annotationid,cadidates[i][1],time))
+      if len(matched_pattern)>0:
+        results[subjectid] = matched_pattern
+
+    return results
 
   def get_time_by_annotation(self, annotation_list = [], annotationid_list = [] ):
     # if input annotation is empty, then return all patients with annotation
@@ -294,6 +450,107 @@ class QueryClient:
         result[subjectid] = [time]
     return result
 
+  def temproal_query(self,input):
+    # input: [ (point1), (point2), ...]
+    # point: (annotation_list, exclude_annotation_list, relation_list)
+    # relation_list: [(input_index,time_diff)]
+    if not input:
+      print("ERROR at temproal_query: input is empty")
+
+    input_length = len(input)
+    all_relations_by_points = [ [] for i in range(input_length)]
+    all_relations_dict = {}
+    for point_index, point_data in enumerate(input):
+      if point_index == input_length-1 and not all_relations_by_points[point_index]:
+        break
+      annotation_list, exclude_annotation_list, relation_list = point_data
+      # add a before relation to next point if not exists
+      if not relation_list or sorted(relation_list,key=lambda x:x[0],reverse=True)[0][0]!=point_index+1:
+        if point_index != input_length-1:
+          relation_list.append( (point_index+1,None) )
+      if relation_list:
+        for relation_data in relation_list:
+          print(relation_data)
+          pt_relation_dict = {}
+          point2_index = relation_data[0]
+          relation_key = str(point_index)+"-"+str(point2_index)
+          all_relations_by_points[point2_index].append(relation_key)
+          annotationid2_list = input[point2_index][0]
+          time_diff = relation_data[1]
+          _relation_results = self.get_time_by_annotation_relation(time_diff=time_diff,annotationid1_list=annotation_list,annotationid2_list=annotationid2_list)
+          for subjectid, _tmp_relation_list in _relation_results.items():
+            _before_dict = {}
+            _after_dict = {}
+            for _tmp_relation_data in _tmp_relation_list:
+              _tmp_anno1,_tmp_anno2,_tmp_time_list = _tmp_relation_data
+              for _tmp_time in _tmp_time_list:
+                _tmp_time1, _tmp_time2 = _tmp_time
+                try:
+                  _before_dict[_tmp_time1].append((_tmp_time2,_tmp_anno1,_tmp_anno2))
+                except:
+                  _before_dict[_tmp_time1] = [(_tmp_time2,_tmp_anno1,_tmp_anno2)]
+                try:
+                  _after_dict[_tmp_time2].append((_tmp_time1,_tmp_anno1,_tmp_anno2))
+                except:
+                  _after_dict[_tmp_time2] = [(_tmp_time1,_tmp_anno1,_tmp_anno2)]
+            pt_relation_dict[subjectid] = [_before_dict, _after_dict]
+          all_relations_dict[relation_key] = pt_relation_dict
+      else:
+        _point_result = self.get_time_by_annotation(annotationid_list = annotation_list)
+        all_relations_dict[str(point_index)] = _point_result
+    
+    print("all_relations_by_points", all_relations_by_points)
+    print("all_relations_dict",all_relations_dict.keys())
+
+    cadicates_set = None
+    cadicates_timeline = {}
+    for relation_key, pt_relation_result in all_relations_dict.items():
+      _tmp_subjectid_set = pt_relation_result.keys()
+      if cadicates_set == None:
+        cadicates_set = _tmp_subjectid_set
+      else:
+        cadicates_set = cadicates_set & _tmp_subjectid_set
+      if len(cadicates_set) == 0:
+        return {}
+    for subjectid in cadicates_set:
+      cadicates_timeline[subjectid] = [ None for i in range(input_length)]
+    for point2_index in range(input_length-1,-1):
+      relation_keys = all_relations_by_points[point2_index]
+      removed_cadicates_set = set([])
+      for subjectid in cadicates_set:
+        removed_cadicate_flag = False
+        tmp_timeline = cadicates_timeline[subjectid]
+        # check point2
+        for relation_key in relation_keys:
+          _tmp_after_dict = all_relations_dict[relation_key][subjectid][1]
+          _tmp_point2_times_set = _tmp_after_dict.keys()
+          if tmp_timeline[point2_index] == None:
+            tmp_timeline[point2_index] = _tmp_point2_times_set
+          else:
+            tmp_timeline[point2_index] = tmp_timeline[point2_index] & _tmp_point2_times_set
+          if len(tmp_timeline[point2_index]) == 0:
+            removed_cadicates_set.add(subjectid)
+            removed_cadicate_flag = True
+            break
+        if removed_cadicate_flag:
+          break
+        # check point1
+        for relation_key in relation_keys:
+          point1_index = int(relation_key.split("-")[0])
+          _tmp_after_dict = all_relations_dict[relation_key][subjectid][1]
+          _tmp_point1_times_set = set([])
+          for point2_time in tmp_timeline[point2_index]:
+            _tmp_point1_times_set = _tmp_point1_times_set.union(_tmp_after_dict[point2_time])
+          if tmp_timeline[point1_index] == None:
+            tmp_timeline[point1_index] = _tmp_point1_times_set
+          else:
+            tmp_timeline[point1_index] = tmp_timeline[point1_index] & _tmp_point1_times_set
+          if len(tmp_timeline[point1_index]) == 0:
+            removed_cadicates_set.add(subjectid)
+            removed_cadicate_flag = True
+            break
+      cadicates_set = cadicates_set-removed_cadicate_flag
+    print("cadicates_set", len(cadicates_set))
 
 
 def get_fixed_segment_start_datetime(segment_start_datetime,segment_duration):
