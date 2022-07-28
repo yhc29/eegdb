@@ -1,3 +1,4 @@
+import re
 import sys
 sys.path.insert(0, '..')
 
@@ -34,7 +35,7 @@ class QueryClient:
   def get_annotation_tii_collection(self):
     return self.__database["annotation_tii"]
   def get_annotation_relation_pt_timeline_collection(self):
-    return self.__database["annotation_relation_pt_timeline"]
+    return self.__database["annotation_relation_pt_timeline_v2"]
   def get_annotation_relation_pt_timeline_collection_v1(self):
     return self.__database["annotation_relation_pt_timeline_v1"]
 
@@ -345,7 +346,7 @@ class QueryClient:
                 "$filter": {
                   "input": "$time_diff",
                   "as": "item",
-                  "cond": {"$and": [ {"$gte": ["$$item",time_diff[0]]},{"$lte": ["$$item",time_diff[1]]}]}
+                  "cond": {"$and": [ {"$ne": ["$$item",0]}, {"$gte": ["$$item",time_diff[0]]},{"$lte": ["$$item",time_diff[1]]}]}
                 }
               }}
             ]
@@ -454,8 +455,8 @@ class QueryClient:
     # input: [ (point1), (point2), ...]
     # point: (annotation_list, exclude_annotation_list, relation_list)
     # relation_list: [(input_index,time_diff)]
-    if not input:
-      print("ERROR at temproal_query: input is empty")
+    if not input or len(input)<2:
+      print("ERROR at temproal_query: input is empty or size<2")
 
     input_length = len(input)
     all_relations_by_points = [ [] for i in range(input_length)]
@@ -467,7 +468,7 @@ class QueryClient:
       # add a before relation to next point if not exists
       if not relation_list or sorted(relation_list,key=lambda x:x[0],reverse=True)[0][0]!=point_index+1:
         if point_index != input_length-1:
-          relation_list.append( (point_index+1,None) )
+          relation_list.append( (point_index+1,[0,24*3600]) )
       if relation_list:
         for relation_data in relation_list:
           print(relation_data)
@@ -477,6 +478,7 @@ class QueryClient:
           all_relations_by_points[point2_index].append(relation_key)
           annotationid2_list = input[point2_index][0]
           time_diff = relation_data[1]
+          # print(time_diff,annotation_list,annotationid2_list)
           _relation_results = self.get_time_by_annotation_relation(time_diff=time_diff,annotationid1_list=annotation_list,annotationid2_list=annotationid2_list)
           for subjectid, _tmp_relation_list in _relation_results.items():
             _before_dict = {}
@@ -495,12 +497,16 @@ class QueryClient:
                   _after_dict[_tmp_time2] = [(_tmp_time1,_tmp_anno1,_tmp_anno2)]
             pt_relation_dict[subjectid] = [_before_dict, _after_dict]
           all_relations_dict[relation_key] = pt_relation_dict
-      else:
+      elif not all_relations_by_points[point_index]:
         _point_result = self.get_time_by_annotation(annotationid_list = annotation_list)
         all_relations_dict[str(point_index)] = _point_result
     
     print("all_relations_by_points", all_relations_by_points)
     print("all_relations_dict",all_relations_dict.keys())
+
+    # for time1, data in all_relations_dict["1-2"]["147F147Z0881747573"][0].items():
+    #   print(time1)
+    #   print(data)
 
     cadicates_set = None
     cadicates_timeline = {}
@@ -512,18 +518,24 @@ class QueryClient:
         cadicates_set = cadicates_set & _tmp_subjectid_set
       if len(cadicates_set) == 0:
         return {}
+
+    # cadicates_set = set(["MJBD18937780295960"])
+
     for subjectid in cadicates_set:
       cadicates_timeline[subjectid] = [ None for i in range(input_length)]
-    for point2_index in range(input_length-1,-1):
+    for point2_index in range(input_length-1,-1,-1):
       relation_keys = all_relations_by_points[point2_index]
       removed_cadicates_set = set([])
       for subjectid in cadicates_set:
+        # print(subjectid)
         removed_cadicate_flag = False
         tmp_timeline = cadicates_timeline[subjectid]
         # check point2
         for relation_key in relation_keys:
+          # print("relation_key",relation_key)
           _tmp_after_dict = all_relations_dict[relation_key][subjectid][1]
-          _tmp_point2_times_set = _tmp_after_dict.keys()
+          _tmp_point2_times_set = set(_tmp_after_dict.keys())
+          # print(_tmp_point2_times_set)
           if tmp_timeline[point2_index] == None:
             tmp_timeline[point2_index] = _tmp_point2_times_set
           else:
@@ -540,7 +552,7 @@ class QueryClient:
           _tmp_after_dict = all_relations_dict[relation_key][subjectid][1]
           _tmp_point1_times_set = set([])
           for point2_time in tmp_timeline[point2_index]:
-            _tmp_point1_times_set = _tmp_point1_times_set.union(_tmp_after_dict[point2_time])
+            _tmp_point1_times_set = _tmp_point1_times_set.union(set([ x[0] for x in _tmp_after_dict[point2_time]]))
           if tmp_timeline[point1_index] == None:
             tmp_timeline[point1_index] = _tmp_point1_times_set
           else:
@@ -549,8 +561,50 @@ class QueryClient:
             removed_cadicates_set.add(subjectid)
             removed_cadicate_flag = True
             break
-      cadicates_set = cadicates_set-removed_cadicate_flag
+        if not removed_cadicate_flag:
+          cadicates_timeline[subjectid] = tmp_timeline
+
+      cadicates_set = cadicates_set-removed_cadicates_set
     print("cadicates_set", len(cadicates_set))
+
+    # get patterns
+    result = {}
+    for subjectid in cadicates_set:
+      # print(subjectid)
+      tmp_timeline = cadicates_timeline[subjectid]
+      for _tmp_time in sorted(list(tmp_timeline[0]),reverse=True):
+        pattern = None
+        for point_index in range(input_length-1):
+          relation_key = str(point_index)+"-"+str(point_index+1)
+          next_relation_key = str(point_index+1)+"-"+str(point_index+2)
+          # print(relation_key)
+          # print(all_relations_dict[relation_key][subjectid][0].keys())
+          _temp_before_relations = all_relations_dict[relation_key][subjectid][0][_tmp_time]
+          # if subjectid == "MJBD18937780295960":
+          #   print(point_index)
+          #   print(_tmp_time)
+          #   print(_temp_before_relations)
+          for _tmp_time2,_tmp_anno1,_tmp_anno2 in sorted(_temp_before_relations,key = lambda x:x[0],reverse=True):
+            if _tmp_time2 in tmp_timeline[point_index+1]:
+              if point_index < input_length - 2 and not _tmp_time2 in all_relations_dict[next_relation_key][subjectid][0].keys():
+                continue
+              if pattern == None:
+                pattern = [(_tmp_time,_tmp_anno1)]
+              pattern.append((_tmp_time2,_tmp_anno2))
+              _tmp_time = _tmp_time2
+              break
+          if not pattern or len(pattern) != point_index+2:
+            break
+        # matched
+        if pattern and len(pattern) == input_length:
+          for i in range(1,input_length):
+            tmp_timeline[i].remove(pattern[i][0])
+          try:
+            result[subjectid].append(pattern)
+          except:
+            result[subjectid] = [pattern]
+
+    return result
 
 
 def get_fixed_segment_start_datetime(segment_start_datetime,segment_duration):

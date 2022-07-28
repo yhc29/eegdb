@@ -128,6 +128,11 @@ def annotation_ralation_pt_timeline_import(eegdb):
           pt_annotation_relation_dict[(annotation1[0],annotation2[0])].append((time_diff,annotation1[1],annotation2[1]))
         except:
           pt_annotation_relation_dict[(annotation1[0],annotation2[0])] = [(time_diff,annotation1[1],annotation2[1])]
+        if time_diff == 0:
+          try:
+            pt_annotation_relation_dict[(annotation2[0],annotation1[0])].append((time_diff,annotation2[1],annotation1[1]))
+          except:
+            pt_annotation_relation_dict[(annotation2[0],annotation1[0])] = [(time_diff,annotation2[1],annotation1[1])]
     for relation, time_diff_list in pt_annotation_relation_dict.items():
       annotationid1 = relation[0]
       annotationid2 = relation[1]
