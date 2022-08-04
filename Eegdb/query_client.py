@@ -319,9 +319,9 @@ class QueryClient:
       print("input error: annotation_list or annotationid_list is empty")
       return []
     if subjectid_list:
-      _match_stmt = { "subjectid":{"$in":subjectid_list}, "annotationid1": {"$in":annotationid1_list}, "annotationid2": {"$in":annotationid2_list}, "time_diff": { "$elemMatch": { "$ne":0,"$gte": time_diff[0], "$lte": time_diff[1] } } }
+      _match_stmt = { "subjectid":{"$in":subjectid_list}, "annotationid1": {"$in":annotationid1_list}, "annotationid2": {"$in":annotationid2_list}, "time_diff": { "$elemMatch": { "$gte": time_diff[0], "$lte": time_diff[1] } } }
     else:
-      _match_stmt = { "annotationid1": {"$in":annotationid1_list},"annotationid2": {"$in":annotationid2_list}, "time_diff": { "$elemMatch": { "$ne":0,"$gte": time_diff[0], "$lte": time_diff[1] } } }
+      _match_stmt = { "annotationid1": {"$in":annotationid1_list},"annotationid2": {"$in":annotationid2_list}, "time_diff": { "$elemMatch": { "$gte": time_diff[0], "$lte": time_diff[1] } } }
     _ap_stmt = [
       { "$match" : _match_stmt },
       { "$project": {
@@ -338,7 +338,7 @@ class QueryClient:
                   "$filter": {
                     "input": "$time_diff",
                     "as": "item",
-                    "cond": { "$and": [ {"$ne": ["$$item",0]}, {"$gte": ["$$item",time_diff[0]]}] }
+                    "cond": {"$gte": ["$$item",time_diff[0]]}
                   }
                 }}
               ]},
@@ -346,7 +346,7 @@ class QueryClient:
                 "$filter": {
                   "input": "$time_diff",
                   "as": "item",
-                  "cond": {"$and": [ {"$ne": ["$$item",0]}, {"$gte": ["$$item",time_diff[0]]},{"$lte": ["$$item",time_diff[1]]}]}
+                  "cond": {"$and": [ {"$gte": ["$$item",time_diff[0]]},{"$lte": ["$$item",time_diff[1]]}]}
                 }
               }}
             ]
@@ -451,7 +451,247 @@ class QueryClient:
         result[subjectid] = [time]
     return result
 
+  def temproal_query_v0(self,input):
+    # print(input)
+    # input: [ (point1), (point2), ...]
+    # point: (annotation_list, exclude_annotation_list, relation_list)
+    # relation_list: [(input_index,time_diff)]
+    if not input or len(input)<2:
+      print("ERROR at temproal_query: input is empty or size<2")
+
+    input_length = len(input)
+    candidates_set = None
+    annotationid_pt_time_dict = {}
+    input_relation_dict = {}
+    for point_index, point_data in enumerate(input):
+      annotationid_list = point_data[0]
+      relation_list = point_data[2]
+      if relation_list:
+        input_relation_dict[point_index] = relation_list
+      _ap_stmt = [
+        { "$match" : { "annotationid_partial": {"$in":annotationid_list}}},
+        { "$project": {"_id": 0, "subjectid": 1, "annotationid_partial":1, "time": 1} },
+        { "$group": { 
+          "_id": {"subjectid": "$subjectid", "annotationid": "$annotationid_partial"},
+          "time_list":{"$addToSet":"$time"},
+        } }
+      ]
+      docs = self.get_annotations_collection().aggregate(_ap_stmt,allowDiskUse=False)
+      new_candidates_set = set([])
+      for doc in docs:
+        subjectid = doc["_id"]["subjectid"]
+        annotationid = doc["_id"]["annotationid"]
+        try:
+          annotationid_pt_time_dict[subjectid] += [(point_index,x,annotationid) for x in doc["time_list"]]
+        except:
+          annotationid_pt_time_dict[subjectid] = [(point_index,x,annotationid) for x in doc["time_list"]]
+        new_candidates_set.add(subjectid)
+      if candidates_set == None:
+        candidates_set = new_candidates_set
+      else:
+        candidates_set = candidates_set & new_candidates_set
+      if len(candidates_set) == 0:
+        break
+    # print("candidates_set", len(candidates_set))
+    if len(candidates_set) == 0:
+      return {}
+
+    # candidates_set = set(["147F147Z0881747573"])
+    # for k,v in input_relation_dict.items():
+    #   print(k,v)
+
+    result = {}
+    for subjectid in candidates_set:
+      time_annotation_dict = {}
+      for point_index,time,annotationid in annotationid_pt_time_dict[subjectid]:
+        try:
+          time_annotation_dict[time].append( (point_index,annotationid) )
+        except:
+          time_annotation_dict[time] = [(point_index,annotationid)]
+      patterns_by_length = [ [] for i in range(input_length-1)]
+      matched_patterns = []
+      for time, annotation_list in sorted(time_annotation_dict.items(),key=lambda x:x[0],reverse=False):
+        # print(time.strftime("%m/%d/%Y, %H:%M:%S"),annotation_list)
+        for annotation in sorted(annotation_list,key=lambda x:x[0],reverse=False):
+          _tmp_point_index = annotation[0]
+          _tmp_annotationid = annotation[1]
+          if _tmp_point_index == 0:
+            new_pattern = [None for i in range(input_length)]
+            new_pattern[0] = (time,_tmp_annotationid)
+            try:
+              for relation_list in input_relation_dict[0]:
+                _tmp_point2_index = relation_list[0]
+                _tmp_time_diff = relation_list[1]
+                new_pattern[_tmp_point2_index] = [time+relativedelta(seconds=_tmp_time_diff[0]),time+relativedelta(seconds=_tmp_time_diff[1])]
+            except:
+              pass
+            patterns_by_length[0].append(new_pattern)
+          else:
+            for existing_pattern in patterns_by_length[_tmp_point_index-1]:
+              new_pattern = existing_pattern.copy()
+              if new_pattern[_tmp_point_index]==None or (new_pattern[_tmp_point_index] and time>=new_pattern[_tmp_point_index][0] and time<=new_pattern[_tmp_point_index][1]):
+                new_pattern[_tmp_point_index] = (time,_tmp_annotationid)
+                if _tmp_point_index == input_length-1:
+                  matched_patterns.append(new_pattern)
+                else:
+                  try:
+                    for relation_list in input_relation_dict[_tmp_point_index]:
+                      _tmp_point2_index = relation_list[0]
+                      _tmp_time_diff = relation_list[1]
+                      new_pattern[_tmp_point2_index] = [time+relativedelta(seconds=_tmp_time_diff[0]),time+relativedelta(seconds=_tmp_time_diff[1])]
+                  except:
+                    pass
+                  patterns_by_length[_tmp_point_index].append(new_pattern)
+          # print("*********************")
+          # for patterns in patterns_by_length:
+          #   print(patterns)
+      matched_annotation_set = set([])
+      new_matched_patterns = []
+      if matched_patterns:
+        for matched_pattern in sorted(matched_patterns,key=lambda x:x[0][0],reverse=False):
+          if not any([x in matched_annotation_set for x in matched_pattern]):
+            matched_annotation_set = matched_annotation_set.union(set(matched_pattern))
+            new_matched_patterns.append(matched_pattern)
+        result[subjectid] = new_matched_patterns
+
+    return result
+
+  def temproal_query_v1(self,input):
+    # p_timer = Timer()
+    # input: [ (point1), (point2), ...]
+    # point: (annotation_list, exclude_annotation_list, relation_list)
+    # relation_list: [(input_index,time_diff)]
+    if not input or len(input)<2:
+      print("ERROR at temproal_query: input is empty or size<2")
+
+    input_length = len(input)
+    all_relations_by_point = [ [] for i in range(input_length)]
+    all_nodes_by_subject_dict = {}
+    for point_index, point_data in enumerate(input):
+      if point_index == input_length-1 and not all_relations_by_point[point_index]:
+        break
+      annotation_list, exclude_annotation_list, relation_list = point_data
+      # add a before relation to next point if not exists
+      if not relation_list or sorted(relation_list,key=lambda x:x[0])[0][0]!=point_index+1:
+        if point_index != input_length-1:
+          relation_list.insert( 0,(point_index+1,[0,24*3600]) )
+      else:
+        relation_list = sorted(relation_list,key=lambda x:x[0])
+
+      if relation_list:
+        # todo set more precise time diff
+
+        for relation_data in relation_list:
+          # print(relation_data)
+          point2_index = relation_data[0]
+          if point2_index>point_index+1:
+            all_relations_by_point[point2_index].append(point_index)
+          annotationid2_list = input[point2_index][0]
+          time_diff = relation_data[1]
+          # print(time_diff,annotation_list,annotationid2_list)
+          # _tmp_timer = Timer()
+          _relation_results = self.get_time_by_annotation_relation(time_diff=time_diff,annotationid1_list=annotation_list,annotationid2_list=annotationid2_list)
+          # print(_tmp_timer.click())
+          for subjectid, _tmp_relation_list in _relation_results.items():
+            try:
+              all_nodes_by_subject_dict[subjectid]
+            except:
+              if point_index == 0 and point2_index == 1:
+                all_nodes_by_subject_dict[subjectid] = {}
+              else:
+                continue
+            try:
+              all_nodes_by_subject_dict[subjectid][point_index]
+            except:
+              all_nodes_by_subject_dict[subjectid][point_index] = {}
+            if point2_index>point_index+1:
+              try:
+                all_nodes_by_subject_dict[subjectid][point2_index]
+              except:
+                all_nodes_by_subject_dict[subjectid][point2_index] = {}
+
+            for _tmp_relation_data in _tmp_relation_list:
+              _tmp_anno1,_tmp_anno2,_tmp_time_list = _tmp_relation_data
+              for _tmp_time in _tmp_time_list:
+                _tmp_time1, _tmp_time2 = _tmp_time
+                node1_key = (_tmp_time1,_tmp_anno1)
+                node2_key = (_tmp_time2,_tmp_anno2)
+
+                try:
+                  node1 = all_nodes_by_subject_dict[subjectid][point_index][node1_key]
+                except:
+                  node1 = {}
+                  all_nodes_by_subject_dict[subjectid][point_index][node1_key] = node1
+                try:
+                  node1[point2_index].add(node2_key)
+                except:
+                  node1[point2_index] = set([node2_key])
+                if point2_index>point_index+1:
+                  try:
+                    node2 = all_nodes_by_subject_dict[subjectid][point_index][node2_key]
+                  except:
+                    node2 = {}
+                    all_nodes_by_subject_dict[subjectid][point_index][node2_key] = node2
+                  try:
+                    node2[point_index].add(node1_key)
+                  except:
+                    node2[point_index] = set([node1_key])
+
+    def annotation_pattern_match_dfs(subjectid,point_index,node1_key):
+      new_patterns = []
+      if point_index == input_length-1:
+        new_patterns.append([node1_key])
+        return new_patterns
+
+      node1 = all_nodes_by_subject_dict[subjectid][point_index][node1_key]
+      # check if the relations link to the nodes before are satisfied
+      for pre_point_index in all_relations_by_point[point_index]:
+        try:
+          if node1_key not in node1[pre_point_index].keys():
+            return None
+        except:
+          return None
+      # check next point
+      try:
+        node2_keys = node1[point_index+1]
+      except:
+        return None
+      for node2_key in node2_keys:
+        next_patterns = annotation_pattern_match_dfs(subjectid,point_index+1,node2_key)
+        if next_patterns:
+          for next_pattern in next_patterns:
+            new_patterns.append([node1_key] + next_pattern)
+
+      return new_patterns
+
+    print("all_nodes_by_subject_dict",all_nodes_by_subject_dict.keys())
+    result = {}
+    for subjectid, subject_nodes_by_point_dict in all_nodes_by_subject_dict.items():
+      pt_patterns = []
+      if len(subject_nodes_by_point_dict.keys()) < len(input_length):
+        continue
+      for start_node_key in subject_nodes_by_point_dict[0].keys():
+        patterns = annotation_pattern_match_dfs(subjectid,0,start_node_key)
+        if patterns:
+          pt_patterns += patterns
+
+      # distinct nodes
+      distinct_patterns = []
+      node_set = set([])
+      for pt_pattern in pt_patterns:
+        if not any([x in node_set for x in pt_pattern]):
+          distinct_patterns.append(pt_pattern)
+          node_set=node_set.union(pt_pattern)
+      if distinct_patterns:
+        result[subjectid] = distinct_patterns
+    
+    return result
+
+
+
+
   def temproal_query(self,input):
+    # p_timer = Timer()
     # input: [ (point1), (point2), ...]
     # point: (annotation_list, exclude_annotation_list, relation_list)
     # relation_list: [(input_index,time_diff)]
@@ -466,12 +706,13 @@ class QueryClient:
         break
       annotation_list, exclude_annotation_list, relation_list = point_data
       # add a before relation to next point if not exists
-      if not relation_list or sorted(relation_list,key=lambda x:x[0],reverse=True)[0][0]!=point_index+1:
+      if not relation_list or sorted(relation_list,key=lambda x:x[0],reverse=False)[0][0]!=point_index+1:
         if point_index != input_length-1:
           relation_list.append( (point_index+1,[0,24*3600]) )
+
       if relation_list:
         for relation_data in relation_list:
-          print(relation_data)
+          # print(relation_data)
           pt_relation_dict = {}
           point2_index = relation_data[0]
           relation_key = str(point_index)+"-"+str(point2_index)
@@ -479,7 +720,9 @@ class QueryClient:
           annotationid2_list = input[point2_index][0]
           time_diff = relation_data[1]
           # print(time_diff,annotation_list,annotationid2_list)
+          # _tmp_timer = Timer()
           _relation_results = self.get_time_by_annotation_relation(time_diff=time_diff,annotationid1_list=annotation_list,annotationid2_list=annotationid2_list)
+          # print(_tmp_timer.click())
           for subjectid, _tmp_relation_list in _relation_results.items():
             _before_dict = {}
             _after_dict = {}
@@ -501,13 +744,13 @@ class QueryClient:
         _point_result = self.get_time_by_annotation(annotationid_list = annotation_list)
         all_relations_dict[str(point_index)] = _point_result
     
-    print("all_relations_by_points", all_relations_by_points)
-    print("all_relations_dict",all_relations_dict.keys())
+    # print("all_relations_by_points", all_relations_by_points)
+    # print("all_relations_dict",all_relations_dict.keys())
 
     # for time1, data in all_relations_dict["1-2"]["147F147Z0881747573"][0].items():
     #   print(time1)
     #   print(data)
-
+    # print(p_timer.click())
     cadicates_set = None
     cadicates_timeline = {}
     for relation_key, pt_relation_result in all_relations_dict.items():
@@ -520,7 +763,7 @@ class QueryClient:
         return {}
 
     # cadicates_set = set(["MJBD18937780295960"])
-
+    # print(p_timer.click())
     for subjectid in cadicates_set:
       cadicates_timeline[subjectid] = [ None for i in range(input_length)]
     for point2_index in range(input_length-1,-1,-1):
@@ -561,18 +804,22 @@ class QueryClient:
             removed_cadicates_set.add(subjectid)
             removed_cadicate_flag = True
             break
+        # if subjectid == "YDTY25419400633238":
+        #   print(tmp_timeline)
         if not removed_cadicate_flag:
           cadicates_timeline[subjectid] = tmp_timeline
 
       cadicates_set = cadicates_set-removed_cadicates_set
-    print("cadicates_set", len(cadicates_set))
-
+    # print("cadicates_set", len(cadicates_set))
+    # print(p_timer.click())
     # get patterns
     result = {}
     for subjectid in cadicates_set:
       # print(subjectid)
       tmp_timeline = cadicates_timeline[subjectid]
-      for _tmp_time in sorted(list(tmp_timeline[0]),reverse=True):
+      if not tmp_timeline[0]:
+        continue
+      for _tmp_time in sorted(list(tmp_timeline[0]),reverse=False):
         pattern = None
         for point_index in range(input_length-1):
           relation_key = str(point_index)+"-"+str(point_index+1)
@@ -584,7 +831,7 @@ class QueryClient:
           #   print(point_index)
           #   print(_tmp_time)
           #   print(_temp_before_relations)
-          for _tmp_time2,_tmp_anno1,_tmp_anno2 in sorted(_temp_before_relations,key = lambda x:x[0],reverse=True):
+          for _tmp_time2,_tmp_anno1,_tmp_anno2 in sorted(_temp_before_relations,key = lambda x:x[0],reverse=False):
             if _tmp_time2 in tmp_timeline[point_index+1]:
               if point_index < input_length - 2 and not _tmp_time2 in all_relations_dict[next_relation_key][subjectid][0].keys():
                 continue
@@ -603,7 +850,7 @@ class QueryClient:
             result[subjectid].append(pattern)
           except:
             result[subjectid] = [pattern]
-
+    # print(p_timer.click())
     return result
 
 

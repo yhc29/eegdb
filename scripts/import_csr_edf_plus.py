@@ -14,7 +14,8 @@ from Utils.timer import Timer
 from Eegdb.data_file import DataFile
 from Eegdb.eegdb import Eegdb
 
-import config.db_config_ibm as config_file
+# import config.db_config_ibm as config_file
+import config.db_config_sbmi as config_file
 
 def annotation_file_import(eegdb,annotation_file_path):
   print("load",annotation_file_path)
@@ -94,7 +95,7 @@ def edf_plus_import(eegdb,data_folder):
 
 def annotation_ralation_pt_timeline_import(eegdb):
   max_n_relation_in_doc = 100000
-  collection_name = "annotation_relation_pt_timeline_v2"
+  collection_name = "annotation_relation_pt_timeline_v1"
   eegdb.drop_collections([collection_name])
   subjectid_list = eegdb.get_collection("annotation_records").distinct("subjectid")
   subjectid_count = 0
@@ -138,25 +139,25 @@ def annotation_ralation_pt_timeline_import(eegdb):
       annotationid2 = relation[1]
       time_diff_list = sorted(time_diff_list,key=lambda x:x[0])
       # v_2
-      if len(time_diff_list)<=max_n_relation_in_doc:
-        time_diff = [ x[0] for x in time_diff_list]
-        time1 = [ x[1] for x in time_diff_list]
-        time2 = [ x[2] for x in time_diff_list]
-        import_doc = {"subjectid":subjectid, "annotationid1":annotationid1,"annotationid2":annotationid2,"time_diff":time_diff,"time1":time1,"time2":time2}
-        doc_list.append(import_doc)
-      else:
-        split_count = math.ceil(len(time_diff_list)/max_n_relation_in_doc)
-        for s in range(split_count):
-          time_diff = [ x[0] for x in time_diff_list[s*max_n_relation_in_doc:(s+1)*max_n_relation_in_doc]]
-          time1 = [ x[1] for x in time_diff_list[s*max_n_relation_in_doc:(s+1)*max_n_relation_in_doc]]
-          time2 = [ x[2] for x in time_diff_list[s*max_n_relation_in_doc:(s+1)*max_n_relation_in_doc]]
-          import_doc = {"subjectid":subjectid, "annotationid1":annotationid1,"annotationid2":annotationid2,"time_diff":time_diff,"time1":time1,"time2":time2}
-          doc_list.append(import_doc)
+      # if len(time_diff_list)<=max_n_relation_in_doc:
+      #   time_diff = [ x[0] for x in time_diff_list]
+      #   time1 = [ x[1] for x in time_diff_list]
+      #   time2 = [ x[2] for x in time_diff_list]
+      #   import_doc = {"subjectid":subjectid, "annotationid1":annotationid1,"annotationid2":annotationid2,"time_diff":time_diff,"time1":time1,"time2":time2}
+      #   doc_list.append(import_doc)
+      # else:
+      #   split_count = math.ceil(len(time_diff_list)/max_n_relation_in_doc)
+      #   for s in range(split_count):
+      #     time_diff = [ x[0] for x in time_diff_list[s*max_n_relation_in_doc:(s+1)*max_n_relation_in_doc]]
+      #     time1 = [ x[1] for x in time_diff_list[s*max_n_relation_in_doc:(s+1)*max_n_relation_in_doc]]
+      #     time2 = [ x[2] for x in time_diff_list[s*max_n_relation_in_doc:(s+1)*max_n_relation_in_doc]]
+      #     import_doc = {"subjectid":subjectid, "annotationid1":annotationid1,"annotationid2":annotationid2,"time_diff":time_diff,"time1":time1,"time2":time2}
+      #     doc_list.append(import_doc)
 
       # v_1
-      # for time_diff,time in time_diff_list:
-      #   import_doc = {"subjectid":subjectid, "annotationid1":annotationid1,"annotationid2":annotationid2,"time_diff":time_diff,"time":time}
-      #   doc_list.append(import_doc)
+      for time_diff,time1,time2 in time_diff_list:
+        import_doc = {"subjectid":subjectid, "annotationid1":annotationid1,"annotationid2":annotationid2,"time_diff":time_diff,"time1":time1,"time2":time2}
+        doc_list.append(import_doc)
 
     print(len(doc_list), "docs generated")
     eegdb.import_docs(doc_list,collection_name,batch_size=10000)
