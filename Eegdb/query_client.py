@@ -1,4 +1,5 @@
 from nis import match
+from operator import neg
 import re
 import sys
 sys.path.insert(0, '..')
@@ -10,6 +11,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 import pymongo
 import csv
+import copy
 
 from Eegdb.data_file import DataFile
 
@@ -355,14 +357,14 @@ class QueryClient:
           results[subjectid][relation_index].append((annotationid1,annotationid2,time))
     return results
 
-  def get_time_by_annotation_relations(self, relations, subjectid_list = None ):
+  def get_time_by_annotation_relations(self, relations, subjectid_list = None, eq_oprator = True ):
     # relation: (anno1_list,anno2_list,time_diff)
     candidates_set = set(subjectid_list) if subjectid_list else None
     result = {}
     for relation_index,relation in enumerate(relations):
       anno1_list,anno2_list,time_diff = relation
       subjectid_list = list(candidates_set) if candidates_set else None
-      relation_result = self.get_time_by_annotation_relation(time_diff = time_diff, annotationid1_list = anno1_list, annotationid2_list = anno2_list, subjectid_list = subjectid_list )
+      relation_result = self.get_time_by_annotation_relation(time_diff = time_diff, annotationid1_list = anno1_list, annotationid2_list = anno2_list, subjectid_list = subjectid_list, eq_oprator = eq_oprator )
       if candidates_set == None :
         candidates_set = relation_result.keys()
       else:
@@ -380,7 +382,7 @@ class QueryClient:
       new_result[subjectid] = result[subjectid]
     return new_result
 
-  def get_time_by_annotation_relation_v1(self, time_diff = [0,3600], annotationid1_list = [], annotationid2_list = [], subjectid_list = None ):
+  def get_time_by_annotation_relation_v1(self, time_diff = [0,3600], annotationid1_list = [], annotationid2_list = [], subjectid_list = None, eq_oprator = True ):
     # if input annotation is empty, then return all patients with annotation
     if annotationid1_list == [] or annotationid2_list == []:
       print("input error: annotation_list or annotationid_list is empty")
@@ -419,15 +421,19 @@ class QueryClient:
 
     return results
     
-  def get_time_by_annotation_relation(self, time_diff = [0,3600], annotationid1_list = [], annotationid2_list = [], subjectid_list = None ):
+  def get_time_by_annotation_relation(self, time_diff = [0,3600], annotationid1_list = [], annotationid2_list = [], subjectid_list = None, eq_oprator=True ):
     # if input annotation is empty, then return all patients with annotation
     if annotationid1_list == [] or annotationid2_list == []:
       print("input error: annotation_list or annotationid_list is empty")
       return []
-    if subjectid_list:
-      _match_stmt = { "subjectid":{"$in":subjectid_list}, "annotationid1": {"$in":annotationid1_list}, "annotationid2": {"$in":annotationid2_list}, "time_diff": { "$elemMatch": { "$gte": time_diff[0], "$lte": time_diff[1] } } }
+    if eq_oprator:
+      gt_oprator,lt_oprator = "$gte", "$lte"
     else:
-      _match_stmt = { "annotationid1": {"$in":annotationid1_list},"annotationid2": {"$in":annotationid2_list}, "time_diff": { "$elemMatch": { "$gte": time_diff[0], "$lte": time_diff[1] } } }
+      gt_oprator,lt_oprator = "$gt", "$lt"
+    if subjectid_list:
+      _match_stmt = { "subjectid":{"$in":subjectid_list}, "annotationid1": {"$in":annotationid1_list}, "annotationid2": {"$in":annotationid2_list}, "time_diff": { "$elemMatch": { gt_oprator: time_diff[0], lt_oprator: time_diff[1] } } }
+    else:
+      _match_stmt = { "annotationid1": {"$in":annotationid1_list},"annotationid2": {"$in":annotationid2_list}, "time_diff": { "$elemMatch": { gt_oprator: time_diff[0], lt_oprator: time_diff[1] } } }
     _ap_stmt = [
       { "$match" : _match_stmt },
       { "$project": {
@@ -444,7 +450,7 @@ class QueryClient:
                   "$filter": {
                     "input": "$time_diff",
                     "as": "item",
-                    "cond": {"$gte": ["$$item",time_diff[0]]}
+                    "cond": {gt_oprator: ["$$item",time_diff[0]]}
                   }
                 }}
               ]},
@@ -452,7 +458,7 @@ class QueryClient:
                 "$filter": {
                   "input": "$time_diff",
                   "as": "item",
-                  "cond": {"$and": [ {"$gte": ["$$item",time_diff[0]]},{"$lte": ["$$item",time_diff[1]]}]}
+                  "cond": {"$and": [ {gt_oprator: ["$$item",time_diff[0]]},{lt_oprator: ["$$item",time_diff[1]]}]}
                 }
               }}
             ]
@@ -557,6 +563,217 @@ class QueryClient:
         result[subjectid] = [time]
     return result
 
+  def temproal_query_v0_dfa(self,input):
+    if not input:
+      print("ERROR at temproal_query: input is empty")
+      return -1
+    def build_dfa(input):
+      # states {state_id: { transition: {next_id: [raltion,next_state_id]}, pattern_list: [pattern1,pattern2,...]}}
+      # transition_dict: { next_id: [state_id1, state_id2]}
+      state_dict = {}
+      transition_dict = {}
+      for point_index in range(len(input)):
+        transition_dict[point_index] = set([])
+      transition_dict["End"] = set([])
+      for state_id in range(len(input)+1):
+        state_dict[state_id] = {"transition": {}, "pattern_list": []}
+        if state_id == len(input):
+          break
+        point_index = state_id
+        if not input[point_index][1] and state_id < len(input):
+          state_dict[state_id]["transition"][point_index] = [input[point_index][2], state_id+1]
+          transition_dict[point_index].add(state_id)
+        elif input[point_index][1]:
+          state_dict[state_id]["transition"][point_index] = [input[point_index][2], state_id]
+          transition_dict[point_index].add(state_id)
+        for i in range(point_index,len(input)):
+          if input[i][1]:
+            if i+1<len(input):
+              state_dict[state_id]["transition"][i+1] = [input[i+1][2], i+2]
+              transition_dict[i+1].add(state_id)
+            elif i+1 == len(input):
+              state_dict[state_id]["transition"]["End"] = [None, i+1]
+              transition_dict["End"].add(state_id)
+          else:
+            break
+
+      return state_dict,transition_dict
+    state_dict,transition_dict = build_dfa(input)
+    # for state_id,state_data in state_dict.items():
+    #   print(state_id,state_data)
+    # for point_index,state_ids in transition_dict.items():
+    #   print(point_index,state_ids)
+
+    input_length = len(input)
+    candidates_set = None
+    annotationid_pt_time_dict = {}
+
+    for point_index, point_data in enumerate(input):
+      annotationid_list,negation_flag,relation_list = point_data
+      _ap_stmt = [
+        { "$match" : { "annotationid_partial": {"$in":annotationid_list}}},
+        { "$project": {"_id": 0, "subjectid": 1, "annotationid_partial":1, "time": 1} },
+        { "$group": { 
+          "_id": {"subjectid": "$subjectid", "annotationid": "$annotationid_partial"},
+          "time_list":{"$addToSet":"$time"},
+        } }
+      ]
+      docs = self.get_annotations_collection().aggregate(_ap_stmt,allowDiskUse=False)
+      new_candidates_set = set([])
+      for doc in docs:
+        subjectid = doc["_id"]["subjectid"]
+        annotationid = doc["_id"]["annotationid"]
+        try:
+          annotationid_pt_time_dict[subjectid] += [(point_index,x,annotationid) for x in doc["time_list"]]
+        except:
+          annotationid_pt_time_dict[subjectid] = [(point_index,x,annotationid) for x in doc["time_list"]]
+        new_candidates_set.add(subjectid)
+      if not negation_flag:
+        if candidates_set == None:
+          candidates_set = new_candidates_set
+        else:
+          candidates_set = candidates_set & new_candidates_set
+        if len(candidates_set) == 0:
+          break
+    # print("candidates_set", len(candidates_set))
+    if len(candidates_set) == 0:
+      return {}
+    # candidates_set = set(["KDXG32640012452873"])
+
+    def _check_time_condition(_time,_and_condition_list):
+      if not _and_condition_list:
+        return True
+      for _or_conditions in _and_condition_list:
+        _or_condition_result = False
+        for _condition in _or_conditions:
+          if _condition[0] == "lt":
+            _condition_result = _time < _condition[1]
+          elif _condition[0] == "lte":
+            _condition_result = _time <= _condition[1]
+          elif _condition[0] == "gt":
+            _condition_result = _time > _condition[1]
+          elif _condition[0] == "gte":
+            _condition_result = _time >= _condition[1]
+          if _condition_result:
+            _or_condition_result = True
+            break
+        if not _or_condition_result:
+          return False
+      return True
+
+    result = {}
+    for subjectid in candidates_set:
+      # print(subjectid)
+      pt_state_dict = copy.deepcopy(state_dict)
+      removed_states = set([])
+      time_annotation_dict = {}
+      for point_index,time,annotationid in annotationid_pt_time_dict[subjectid]:
+        try:
+          time_annotation_dict[time].append( (point_index,annotationid) )
+        except:
+          time_annotation_dict[time] = [(point_index,annotationid)]
+      matched_patterns = []
+      for time, annotation_list in sorted(time_annotation_dict.items(),key=lambda x:x[0],reverse=False):
+        # print("********************",time.strftime("%m/%d/%Y, %H:%M:%S"),annotation_list)
+        for annotation in sorted(annotation_list,key=lambda x:x[0],reverse=False):
+          _tmp_point_index,_tmp_annotationid = annotation
+          for _tmp_state_id in sorted(list(transition_dict[_tmp_point_index]),reverse=True):
+            _tmp_state = pt_state_dict[_tmp_state_id]
+            _tmp_point_neg_flag = input[_tmp_point_index][1]
+            try:
+              _tmp_transition = _tmp_state["transition"][_tmp_point_index]
+            except:
+              continue
+            _tmp_relation_list = _tmp_transition[0]
+            _tmp_next_state_id = _tmp_transition[1]
+            removed_patterns = []
+            if _tmp_state_id == 0 and _tmp_state["pattern_list"] == []:
+              # create new pattern
+              new_pattern = [None for i in range(input_length)]
+              new_pattern[_tmp_point_index] = (time,_tmp_annotationid)
+              for _tmp_relation in _tmp_relation_list:
+                _tmp_time_diff = _tmp_relation[1]
+                if _tmp_point_neg_flag or input[_tmp_relation[0]][1]:
+                  new_pattern[_tmp_relation[0]] = [[("lte",time+relativedelta(seconds=_tmp_time_diff[0])),("gte",time+relativedelta(seconds=_tmp_time_diff[1]))]]
+                else:
+                  new_pattern[_tmp_relation[0]] = [[("gte",time+relativedelta(seconds=_tmp_time_diff[0]))],[("lte",time+relativedelta(seconds=_tmp_time_diff[1]))]]
+              pt_state_dict[_tmp_next_state_id]["pattern_list"].append(new_pattern)
+            elif _tmp_next_state_id == _tmp_state_id:
+              # update self
+              for _exist_pattern in _tmp_state["pattern_list"]:
+                if type(_exist_pattern[_tmp_point_index]) is tuple or _check_time_condition(time,_exist_pattern[_tmp_point_index]):
+                  for _tmp_relation in _tmp_relation_list:
+                    _tmp_time_diff = _tmp_relation[1]
+                    _exist_pattern[_tmp_relation[0]] += [[("lte",time+relativedelta(seconds=_tmp_time_diff[0])),("gte",time+relativedelta(seconds=_tmp_time_diff[1]))]]
+                else:
+                  if _tmp_point_neg_flag:
+                    removed_patterns.append(_exist_pattern)
+            else:
+              # check existing pattern
+              for _exist_pattern in _tmp_state["pattern_list"]:
+                check_condition = _check_time_condition(time,_exist_pattern[_tmp_point_index])
+                if check_condition:
+                  new_pattern = _exist_pattern.copy()
+                  new_pattern[_tmp_point_index] = (time,_tmp_annotationid)
+                  for _tmp_relation in _tmp_relation_list:
+                    _tmp_time_diff = _tmp_relation[1]
+                    if not new_pattern[_tmp_relation[0]]:
+                      new_pattern[_tmp_relation[0]] = []
+                    if _tmp_point_neg_flag or input[_tmp_relation[0]][1]:
+                      new_pattern[_tmp_relation[0]] += [[("lte",time+relativedelta(seconds=_tmp_time_diff[0])),("gte",time+relativedelta(seconds=_tmp_time_diff[1]))]]
+                    else:
+                      new_pattern[_tmp_relation[0]] += [[("gte",time+relativedelta(seconds=_tmp_time_diff[0]))],[("lte",time+relativedelta(seconds=_tmp_time_diff[1]))]]
+                  pt_state_dict[_tmp_next_state_id]["pattern_list"].append(new_pattern)
+                else:
+                  if _tmp_point_neg_flag:
+                    removed_patterns.append(_exist_pattern)
+            for removed_pattern in removed_patterns:
+              _tmp_state["pattern_list"].remove(removed_pattern)
+        #     print("_tmp_state_id",_tmp_state_id,"removed_patterns",removed_patterns)
+        # for state_id,state_data in pt_state_dict.items():
+        #   print(state_id)
+        #   for p in state_data["pattern_list"]:
+        #     print(p)
+        # print(removed_states)
+
+      matched_pattern_list = pt_state_dict[len(input)]["pattern_list"]
+      # print(subjectid)
+      # print(removed_states)
+      # for state_id,state_data in pt_state_dict.items():
+      #   print(state_id,state_data)
+      if input[-1][1]:
+        try:
+          for state_id in transition_dict["End"]:
+            if state_id not in removed_states:
+              matched_pattern_list += pt_state_dict[state_id]["pattern_list"]
+        except:
+          pass
+
+      # an annotation should not appear in two points
+      new_matched_patterns = []
+      neg_index_list = []
+      for i in range(input_length):
+        if input[i][1]:
+          neg_index_list.append(i)
+      for matched_pattern in matched_pattern_list:
+        # matched_pattern = [a if type(a) is tuple else None for a in matched_pattern]
+        # tmp_annotation_list = [a for a in matched_pattern if a]
+        tmp_annotation_list = [a for i,a in enumerate(matched_pattern) if a and i not in neg_index_list]
+        if len(set(tmp_annotation_list)) == len(tmp_annotation_list):
+          new_matched_patterns.append(tmp_annotation_list)
+      matched_pattern_list = new_matched_patterns
+
+      matched_annotation_set = set([])
+      new_matched_patterns = []
+      if matched_pattern_list:
+        for matched_pattern in sorted(matched_pattern_list,key=lambda x:x[0][0],reverse=False):
+          if not any([x in matched_annotation_set for x in matched_pattern]):
+            matched_annotation_set = matched_annotation_set.union(set(matched_pattern))
+            new_matched_patterns.append(matched_pattern)
+        result[subjectid] = new_matched_patterns
+      # print(result[subjectid])
+    return result
+
   def temproal_query_v0(self,input):
     # print(input)
     # input: [ (point1), (point2), ...]
@@ -647,6 +864,7 @@ class QueryClient:
                 _tmp_point2_index = relation_list[0]
                 _tmp_time_diff = relation_list[1]
                 new_pattern[_tmp_point2_index] = [time+relativedelta(seconds=_tmp_time_diff[0]),time+relativedelta(seconds=_tmp_time_diff[1])]
+
             except:
               pass
             patterns_by_length[0].append(new_pattern)
@@ -659,7 +877,7 @@ class QueryClient:
           else:
             for existing_pattern in patterns_by_length[_tmp_point_index-1]:
               new_pattern = existing_pattern.copy()
-              if new_pattern[_tmp_point_index]==None or (new_pattern[_tmp_point_index] and time>=new_pattern[_tmp_point_index][0] and time<=new_pattern[_tmp_point_index][1]):
+              if new_pattern[_tmp_point_index]==None or ( not input[_tmp_point_index][1] and (new_pattern[_tmp_point_index] and time>=new_pattern[_tmp_point_index][0] and time<=new_pattern[_tmp_point_index][1])) or ( input[_tmp_point_index][1] and (new_pattern[_tmp_point_index] and time>new_pattern[_tmp_point_index][0] and time<new_pattern[_tmp_point_index][1])):
                 new_pattern[_tmp_point_index] = (time,_tmp_annotationid)
                 if _tmp_point_index == input_length-1:
                   matched_patterns.append(new_pattern)
@@ -681,12 +899,11 @@ class QueryClient:
                         matched_patterns.append(new_pattern)
                     else:
                       break
-      # if subjectid == "XKNQ88462976439395":
+      # if subjectid == "KDXG32640012452873":
       #   print("*********************")
       #   for i,patterns in enumerate(patterns_by_length):
       #     for p in patterns:
-      #       if p[0] == None:
-      #         print(p)
+      #       print(i,p)
 
       # an annotation should not appear in two points
       new_matched_patterns = []
@@ -698,7 +915,7 @@ class QueryClient:
       matched_patterns = new_matched_patterns
 
       if neg_point_index_list:
-        # if subjectid == "HLCV89FV9555554111":
+        # if subjectid == "KDXG32640012452873":
         #   for matched_pattern in matched_patterns:
         #     print(matched_pattern)
         matched_negation_annotation_set = set([])
@@ -709,7 +926,7 @@ class QueryClient:
           else:
             for p1i,p2i_list in neg_relation_dict.items():
               for p2i in p2i_list:
-                if matched_pattern[p1i] and matched_pattern[p2i]:
+                if matched_pattern[p1i] and matched_pattern[p2i] and matched_pattern[p1i][0]!=matched_pattern[p2i][0]:
                   if p1i not in neg_point_index_list:
                     matched_negation_annotation_set.add(matched_pattern[p1i])
                   if p2i not in neg_point_index_list:
@@ -940,7 +1157,7 @@ class QueryClient:
       new_non_neg_input.append((annotation_list, neg_flag, new_relation_list))
     # for x in new_non_neg_input:
     #   print(x)
-    non_neg_result = self.temproal_query_v1_1(new_non_neg_input,return_all_possibilities=True)
+    non_neg_result = self.temproal_query_v1_1(new_non_neg_input,return_all_possibilities=True,negation=False)
     if not non_neg_result:
       return non_neg_result
 
@@ -960,7 +1177,7 @@ class QueryClient:
         new_neg_input.append((annotation_list, neg_flag, new_relation_list))
       # for x in new_neg_input:
       #   print(x)
-      neg_result = self.temproal_query_v1_1(new_neg_input,return_all_possibilities=True)
+      neg_result = self.temproal_query_v1_1(new_neg_input,return_all_possibilities=True,negation=True)
       for subjectid in non_neg_result.keys():
         try:
           pt_neg_patterns = neg_result[subjectid]
@@ -990,7 +1207,7 @@ class QueryClient:
     return result
 
 
-  def temproal_query_v1_1(self,input,return_all_possibilities=False):
+  def temproal_query_v1_1(self,input,return_all_possibilities=False,negation=False):
     # p_timer = Timer()
     # input: [ (point1), (point2), ...]
     # point: (annotation_list, exclude_annotation_list, relation_list)
@@ -1025,7 +1242,10 @@ class QueryClient:
             reversed_relations_by_point[point2_index].append(point_index)
           query_relations.append((annotation_list,input[point2_index][0],relation_data[1]))
 
-    _relation_results = self.get_time_by_annotation_relations(query_relations)
+    if negation:
+      _relation_results = self.get_time_by_annotation_relations(query_relations,eq_oprator=False)
+    else:
+      _relation_results = self.get_time_by_annotation_relations(query_relations,eq_oprator=True)
     for subjectid,relation_data_by_relation_index in _relation_results.items():
       if any([r==[] for r in relation_data_by_relation_index]):
         continue
