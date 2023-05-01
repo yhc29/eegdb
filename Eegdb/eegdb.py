@@ -9,6 +9,7 @@ import pymongo
 import csv
 
 from Eegdb.data_file import DataFile
+from Utils.timer import Timer
 
 BATCH_SIZE = 5000
 
@@ -18,10 +19,10 @@ class Eegdb:
     self.__db_name = db_name
     self.__database = self.__mongo_client[db_name]
     self.__output_folder = output_folder
-    if not os.path.exists(output_folder):
+    if output_folder and not os.path.exists(output_folder):
       os.makedirs(output_folder)
     self.__data_folder = data_folder
-    if not os.path.exists(self.__data_folder):
+    if data_folder and not os.path.exists(self.__data_folder):
       print("Data folder",self.__data_folder,"does not exist.")
   
   def get_db_name(self):
@@ -133,6 +134,7 @@ class Eegdb:
     vendor = "csr_uh"
     sample_rate_set = set([])
     print("import",subjectid,sessionid,filepath,annotation_filepath)
+    import_log = {}
 
     if filepath:
       if check_existing:
@@ -145,6 +147,7 @@ class Eegdb:
           import_edf_flag = False
 
       if import_edf_flag:
+        edf_timer = Timer()
         # print("load edf file")
         file_type = "edf"
         try:
@@ -169,8 +172,11 @@ class Eegdb:
         # import segments
         # print("import segment data to database, segmentation with max_segment_length =",max_segment_length)
         segment_docs = [x.generate_mongo_doc() for x in data_file.segmentation_by_time(segment_duration=segment_duration)]
+        import_log['edf_file_process'] = edf_timer.stop()
         segments_collection = "segments"
+        seg_timer = Timer()
         self.import_docs(segment_docs,segments_collection)
+        import_log['segment_import'] = seg_timer.stop()
     elif annotation_filepath:
       fileid = annotation_filepath.split("/")[-1]
       fileid.replace(".txt",".edf")
@@ -196,7 +202,7 @@ class Eegdb:
           annotation_collection = "annotations"
           # print("import annotation data to database")
           self.import_docs(annotation_docs,annotation_collection)
-    return 1,sample_rate_set
+    return 1,sample_rate_set,import_log
 
   def import_csr_edf_plus(self,csr_site_name,subjectid,sessionid,filepath,segment_duration=None,check_existing=True,max_sample_rate=None,import_edf_flag = True,import_annotation_flag = True):
     sample_rate_set = set([])
@@ -321,7 +327,8 @@ class Eegdb:
     self.__database["files"].create_index([("subjectid","hashed")])
     self.__database["files"].create_index([("start_datetime",1),("end_datetime",1)])
     print("build_index: segments")
-    self.__database["segments"].create_index([("subjectid",1),("channel_labels",1),("start_datetime",1),("end_datetime",1)])
+    # self.__database["segments"].create_index([("subjectid",1),("channel_labels",1),("start_datetime",1),("end_datetime",1)])
+    self.__database["segments"].create_index([("subjectid",1),("channel_labels",1),("segment_datetime",1)])
 
 
   def data_export(self,subjectid_list,channel_list,query_start_datetime=None,query_end_datetime=None):

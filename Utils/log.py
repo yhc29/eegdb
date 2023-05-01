@@ -17,10 +17,10 @@ class LogFile:
   def start_section(self,section):
     self.section_i+=1
     self.section = section
-    self.file.write('*'*20 + self.section + " " + str(datetime.datetime.now()) + '*'*20)
+    self.file.write('*'*20 + self.section + " " + str(datetime.datetime.now()) + '*'*20+"\n")
   
   def end_section(self):
-    self.file.write('*'*20 + self.section + " " + str(datetime.datetime.now()) + '*'*20)
+    self.file.write('*'*20 + self.section + " " + str(datetime.datetime.now()) + '*'*20+"\n")
     self.section = ""
 
   def writeline(self, newlog):
